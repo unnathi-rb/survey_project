@@ -1,4 +1,4 @@
-## 2. Domain and Architecture Note
+## Domain and Architecture Note
 
 ### Domain Design
 
