@@ -1,165 +1,83 @@
-## 2. Domain and Architecture Note
+# Domain and architecture notes
 
-### Domain Design
+## Domain structure
 
-The main parts of the application are `Survey` and `SurveyResponse`.
+The app is built around two ideas: a survey, and the answers people give to it.
 
-- **Survey:** Handles the survey title, description, questions, and status. It also controls the survey lifecycle, such as creating a draft, publishing it, and closing it.
-- **SurveyResponse:** Stores the answers submitted by a respondent for a published survey.
+A **Survey** is what the author builds. It has a title, a description, up to five
+questions, and a status that moves from draft to published to closed. The survey
+owns its questions and their options, so anything that changes them has to go
+through the survey itself. That is how it can enforce its own rules, like the
+five question limit, and like refusing any edit once it is no longer a draft.
 
-The survey rules are handled in the domain layer. For example, a survey cannot be published if its questions are invalid. Once published, its questions and options cannot be changed. Responses can only be submitted while the survey is published.
+A **SurveyResponse** is one person's submitted answers. It is a separate thing
+from the survey, because a survey can collect many responses and they should not
+all live inside it. A response only remembers the id of its survey. When someone
+submits, the survey is loaded and passed in so the answers can be checked
+against it.
 
-Keeping these rules in the domain layer means they still apply even if a request comes directly through the API instead of the browser.
+Questions and options each get their own id when they are created. Answers store
+those ids rather than the text, so fixing a typo in a draft never breaks an
+answer.
 
-### Application Layer
+## Value objects
 
-The application layer connects the domain logic with the rest of the application. It handles operations such as creating a survey, publishing or closing it, submitting responses, and retrieving paginated survey and response lists.
+A few small concepts hold their own rules. A **Rating** can only be a whole
+number from 1 to 5, and it cannot be built any other way, so a bad rating can
+never exist inside the app. **QuestionType** is the fixed set of five kinds of
+question, and **SurveyStatus** is draft, published or closed.
 
-It also coordinates data access through repository interfaces or clearly defined contracts, so the business logic does not need to know how the data is stored.
+## Where the rules live
 
-### Infrastructure and API Layer
+All the business rules sit in the domain folder, in plain TypeScript. That code
+knows nothing about Express, Mongoose or React.
 
-The infrastructure layer handles database operations using MongoDB and Mongoose. It implements the repository contracts and keeps database-specific code separate from the domain logic.
+The survey decides when it can be changed, when it can be published, and when it
+can be closed. Publishing checks that there is a title, between one and five
+questions, and that every question is valid. A question is valid when it has a
+label, and a choice question has at least two different, non-blank options.
 
-The API layer receives requests from the frontend, checks the request format, calls the relevant application operation, and returns the appropriate response. It also converts errors into suitable HTTP responses with clear messages.
+The response decides whether it can be created at all. It refuses a survey that
+is not published, answers for questions that do not exist, the same question
+answered twice, answers of the wrong type, options that do not belong to the
+question, missing answers to required questions, and ratings outside 1 to 5.
+Repeated checkbox choices are counted once. If anything is wrong it reports
+every problem together, and nothing is saved.
 
-### Dependency Direction
+Because the rules live here and not in the web layer, a request sent straight to
+the API hits the same checks as one coming from the browser.
 
-The domain layer does not depend on the API, web framework, or database. The application layer uses the domain rules, while the infrastructure layer connects those rules to the database. The API layer passes requests to the application layer.
+## How the code is laid out
 
-This separation makes the code easier to understand, test, and maintain. It also means that database or API changes are less likely to affect the core survey rules.
+The **domain** folder holds the survey, the response and the small building
+blocks, along with their tests.
 
-### Design Trade-offs
+The **infrastructure** folder is the only place that knows about MongoDB. It
+describes how surveys and responses are stored, and it turns saved data back
+into real domain objects.
 
-I kept the structure focused on the main requirements of the assignment instead of adding unnecessary layers. Separating the domain, application, API, and database code makes the important rules easier to find and change. The trade-off is that this structure requires some extra files and interfaces compared with putting everything in controllers, but it helps keep the code organized as the application grows.
+The **api** folder holds the Express routes. Each route does the same few
+things: check that the request has the right shape, load the survey, ask the
+domain to do the work, save the result, and send an answer back. The domain
+throws plain errors, and a small helper turns them into a 400, 404 or 409 so the
+browser gets a readable message.
 
-## 3. Acceptance Checklist
+The domain depends on nothing. The infrastructure depends on the domain, and the
+api depends on both.
 
-### 1. Draft Editing and Preview
+## Following one request
 
-**Steps**
-- Create a survey draft containing all five question types.
-- Edit and delete a question.
-- Add and delete a choice option.
-- Save the survey, reload it, and check the changes.
-- Try adding a sixth question.
-- Open the preview.
+When a respondent submits the form, the browser sends the answers to the
+submit route. The route checks the body is shaped correctly, then loads the
+survey from MongoDB. It hands the survey and the answers to
+`SurveyResponse.create`, which checks every rule. If they all pass, the response
+is saved and the route answers with a 201. If one fails, the error is thrown
+before anything is saved, and the route answers with a 400 or 409 and the
+message.
 
-**Expected:** Changes should remain after saving and reloading. The application should reject a sixth question. The preview should show the latest survey form without creating a response.
+## Results and lists
 
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add a screenshot or relevant API response.]
-
-### 2. Publication Validation
-
-**Steps**
-- Try publishing an empty survey.
-- Try publishing a survey with an invalid question or choice definition.
-- Correct the definitions and publish the survey.
-- Try submitting a response directly through the API while the survey is still a draft.
-
-**Expected:** Invalid surveys should not be published, and the application should explain the problem clearly. A valid survey should publish successfully. Direct API submissions to a draft should be rejected.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses.]
-
-### 3. Published Questions Stay Fixed
-
-**Steps**
-- Publish a survey.
-- Try editing, adding, or deleting questions and choice options through the browser.
-- Repeat these attempts through the API.
-- If responses already exist, try making the changes again.
-- Try publishing repeatedly or performing an invalid lifecycle transition.
-
-**Expected:** The published survey's questions and options should remain unchanged. Repeated publishing or invalid lifecycle transitions should not reset or alter the survey definition.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses showing the attempts and results.]
-
-### 4. Valid Answers Persist
-
-**Steps**
-- Start the application and its dependencies using Docker Compose.
-- Submit valid answers covering all five question types.
-- Submit another response that skips an optional question.
-- Reload the responses and check the saved answers and response count.
-- Restart the API and dependency stack without deleting the data volumes.
-
-**Expected:** Valid responses should be saved correctly, including responses that skip optional questions. The answers and response count should remain available after restarting the application and dependencies.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses before and after restarting.]
-
-### 5. Invalid Answers Are Rejected by the API
-
-**Steps**
-
-Send direct API requests containing each of these invalid cases:
-
-- A blank answer to a required question.
-- An answer with the wrong data type.
-- An unknown question ID.
-- An unknown choice option.
-- The same question answered more than once in one submission.
-- An empty answer to a required checkbox question.
-- Ratings of `0`, `6`, and `2.5`.
-
-**Expected:** Every invalid submission should be rejected. No invalid response should be saved, and the response count should not increase.
-
-**Actual:** [Record the result of each case.]
-
-**Evidence:** [Add the API requests and their responses.]
-
-### 6. Closing Stops New Responses
-
-**Steps**
-- Open a published survey in the respondent view.
-- Close the survey from the author screen.
-- Try submitting the response from the already-open respondent form.
-- Check the existing responses and results.
-- Open the respondent view again.
-
-**Expected:** The API should reject the submission after the survey is closed, even if the form was opened earlier. Existing responses and results should remain available, and the respondent screen should clearly indicate that the survey is closed.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses.]
-
-### 7. Survey and Response Lists Support Pagination
-
-**Steps**
-- Use seeded data to create enough surveys and responses for multiple pages.
-- Navigate through several pages of both lists.
-- Check the API requests and total counts.
-- With the data unchanged, revisit pages and check their order and contents.
-- Test the status filter and confirm that changing it resets pagination appropriately.
-- Check the first page, last page, empty results, and a page beyond the available results.
-- Try invalid and over-limit pagination values.
-- Check how the interface handles loading and request failures.
-
-**Expected:** Both lists should use server-side pagination and show correct totals. Results should have a stable order without overlapping records between pages when the data is unchanged. Filters and invalid pagination values should be handled correctly, and loading or failure states should be clear.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots and relevant API requests and responses.]
-
-### 8. Results Include All Responses
-
-**Steps**
-- Create a survey with known responses across multiple response-list pages.
-- Check the text answers and the count for each option.
-- Verify the total number of submissions and the average ratings.
-- Change the response-list page and check whether the summary changes.
-- Check results for skipped optional answers.
-- Check the results for a survey with no responses.
-
-**Expected:** Results should include all responses, not just those on the currently displayed page. Option counts, total submissions, and rating averages should match the full dataset. Changing the response-list page should not change the summaries. Skipped optional answers and surveys with no responses should be displayed correctly.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses that show the results and calculations.]
+The results summary is worked out over every saved response, so it does not
+change when you move to another page of the response list. Both the survey list
+and the response list are paged by the database, not the browser, and they are
+sorted newest first with the id as a tie-breaker so pages never overlap.
