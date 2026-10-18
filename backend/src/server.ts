@@ -5,7 +5,6 @@ import { connectToDatabase } from "./infrastructure/db";
 import { authorRoutes } from "./api/authorRoutes";
 import { respondentRoutes } from "./api/respondentRoutes";
 
-
 const app = express();
 
 app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
