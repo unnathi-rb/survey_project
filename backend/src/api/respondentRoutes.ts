@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { SurveyResponse } from "../domain/SurveyResponse";
-import { findSurvey, saveResponse } from "/Users/unnathirb/survey_project/backend/src/infrastructure/repositories";
+import { findSurvey, saveResponse } from "../infrastructure/repositories";
 import { sendError } from "./errors";
 export const respondentRoutes = Router();
 const submitBody = z.object({
