@@ -16,9 +16,6 @@ import { readPagination, makePage } from "./pagination";
 import { buildResults } from "./results";
 
 export const authorRoutes = Router();
-
-// ---------- the shapes we expect in request bodies ----------
-
 const createBody = z.object({
   title: z.string(),
   description: z.string().optional(),
@@ -152,7 +149,7 @@ authorRoutes.delete("/surveys/:id/questions/:questionId", async (req, res) => {
   }
 });
 
-// ---------- options ----------
+
 
 // Add an option to a choice question
 authorRoutes.post("/surveys/:id/questions/:questionId/options", async (req, res) => {
