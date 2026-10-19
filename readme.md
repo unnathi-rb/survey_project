@@ -167,5 +167,5 @@ The live database contains fictional demo data created using the seed script.
 ## Documentation
 
 - [API documentation](docs/api.md)
-- [Architecture](docs/architecture.md)
-- [Acceptance checklist](docs/acceptance.md)
+- [Architecture](docs/domainAndArchitecture.md)
+- [Acceptance checklist](docs/checklist.md)
