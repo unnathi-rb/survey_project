@@ -61,8 +61,8 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** Publishing the empty survey failed with "A survey needs at least one question". Publishing with a one-option choice question failed with "A choice question needs at least two options". After adding the second option, the survey published and its status changed to Published. 
 
 **Evidence**
-![image](screenshots/valid survey.png)
-![image](screenshots/valid question survey.png)
+![image](<screenshots/valid survey.png>)
+![image](<screenshots/valid question survey.png>)
 
 ---
 
@@ -81,7 +81,6 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Evidence**
 
 ![Published survey](<screenshots/no edit for published.png>)
-
 ![Draft survey](<screenshots/only draft editable.png>)
 ---
 
@@ -91,7 +90,7 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 1. Run `docker compose up -d`.
 2. Submit a response that answers all five question types.
 3. Open the results and the response list.
-5. Restart the API and the database (`docker compose restart`, without deleting volumes).
+5. Restart the API and the database
 6. Open the results and the response list again.
 
 **Expected:** Both responses save. The answers and the response count are the same after the restart.
@@ -100,29 +99,12 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** respondent form filled in
->
-> &nbsp;
->
-> &nbsp;
+> Respondent form filled in:
+![image](<screenshots/respondent page.png>)
 
-> **Screenshot 2:** submission confirmation
->
-> &nbsp;
->
-> &nbsp;
+![image](<screenshots/responses summary.png>)
+![image](<screenshots/responses.png>)
 
-> **Screenshot 3:** response count and answers before the restart
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** response count and answers after the restart
->
-> &nbsp;
->
-> &nbsp;
 
 ---
 
@@ -143,13 +125,8 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot / API response:** the requests and their 400 responses
->
-> &nbsp;
->
-> &nbsp;
->
-> &nbsp;
+
+
 
 > **Screenshot / API response:** response count before and after (unchanged)
 >
@@ -171,23 +148,15 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** error shown on the already-open form after the survey was closed
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 2:** respondent screen showing the closed message after reload
+>respondent screen showing the closed message after reload
+![image](<screenshots/closed survey.png>)
 >
 > &nbsp;
 >
 > &nbsp;
 
 > **Screenshot 3:** results and responses still available after closing
->
-> &nbsp;
->
-> &nbsp;
+
 
 ---
 
@@ -208,41 +177,14 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** dashboard page 2 with the Network request showing `page=2&pageSize=10`
+> **Screenshot 1:** dashboard page 2 with the Network request showing
+> ![image](screenshots/pagination.png)
+> 
 >
 > &nbsp;
 >
 > &nbsp;
 
-> **Screenshot 2:** status filter changed and the list back on page 1
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** response list page 2 with its Network request
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** loading state
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 5:** error state with the retry button
->
-> &nbsp;
->
-> &nbsp;
-
-> **API responses:** page beyond the end, and the 400 errors for invalid values
->
-> &nbsp;
->
-> &nbsp;
 
 ---
 
@@ -256,6 +198,7 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Expected:** The summary displays the total number of responses, option counts, the average rating, and text answers based on all responses. The response list displays each submitted response along with its answers.
 
 **Actual:** The summary displayed the total number of responses, option counts, the average rating, and text answers correctly. The response list displayed each submitted response with its answers and was paginated correctly.
+
 ---
 
 ## Known limitations
