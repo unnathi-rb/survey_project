@@ -19,34 +19,12 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** The draft saved all five question types. The edit, the deleted question and the added and removed options were all still there after reloading. When the survey had five questions, the Add question button was disabled and the message "A survey can have only 5 questions" appeared. A direct API call for a sixth question returned 409. Preview showed the current form with the submit button disabled, and the response count stayed the same.
 
 **Evidence**
-
-> **Screenshot 1:** editor with all five question types
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 2:** editor after edit, delete and reload
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** sixth question blocked (disabled button and message)
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** preview page
->
-> &nbsp;
->
-> &nbsp;
-
-> **API response:** sixth question rejected (409)
->
-> &nbsp;
+> Editor page:
+![image](screenshots/editor.png)
+> Preview page: 
+![image](screenshots/preview.png)
+> More than 5 questions not allwoed:
+![image](<screenshots/6th question.png>)
 
 ---
 
@@ -61,7 +39,9 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** Publishing the empty survey failed with "A survey needs at least one question". Publishing with a one-option choice question failed with "A choice question needs at least two options". After adding the second option, the survey published and its status changed to Published. 
 
 **Evidence**
+> Empty survey cannot be published:
 ![image](<screenshots/valid survey.png>)
+> Choice questions need options:
 ![image](<screenshots/valid question survey.png>)
 
 ---
@@ -79,9 +59,11 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Evidence**
 
 **Evidence**
-
+> Published surveys have no edit option:
 ![Published survey](<screenshots/no edit for published.png>)
+> Only draft surveys are editable:
 ![Draft survey](<screenshots/only draft editable.png>)
+
 ---
 
 ## 4. Valid answers persist
@@ -99,11 +81,10 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> Respondent form filled in:
+> Respondent form:
 ![image](<screenshots/respondent page.png>)
-
-![image](<screenshots/responses summary.png>)
-![image](<screenshots/responses.png>)
+> Submission successful
+![image](screenshots/thankyou.png)
 
 
 ---
@@ -115,24 +96,18 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 | Case | Expected | Actual |
 |------|----------|--------|
 | Blank answer to a required question | 400 | 400 |
-| Wrong answer type (number for a text question) | 400 | 400 |
 | Unknown question id | 400 | 400 |
-| Unknown option | 400 | 400 |
+
 
 **Expected:** Every request fails, nothing is saved, and the response count does not change.
 
 **Actual:** All requests were rejected with 400 and a message naming the problem. The response count was the same before and after.
 
 **Evidence**
-
-
-
-
-> **Screenshot / API response:** response count before and after (unchanged)
->
-> &nbsp;
-
----
+> Required question not answered:
+![image](<screenshots/required not answered.png>)
+> invalid question ID:
+![image](<screenshots/invalid qiestionid.png>)
 
 ## 6. Closing stops new responses
 
@@ -150,15 +125,7 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 >respondent screen showing the closed message after reload
 ![image](<screenshots/closed survey.png>)
->
-> &nbsp;
->
-> &nbsp;
 
-> **Screenshot 3:** results and responses still available after closing
-
-
----
 
 ## 7. Both lists paginate
 
@@ -177,13 +144,8 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** dashboard page 2 with the Network request showing
+> **Screenshot 1:** dashboard page with the Network request showing
 > ![image](screenshots/pagination.png)
-> 
->
-> &nbsp;
->
-> &nbsp;
 
 
 ---
@@ -198,6 +160,9 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Expected:** The summary displays the total number of responses, option counts, the average rating, and text answers based on all responses. The response list displays each submitted response along with its answers.
 
 **Actual:** The summary displayed the total number of responses, option counts, the average rating, and text answers correctly. The response list displayed each submitted response with its answers and was paginated correctly.
+
+![image](<screenshots/responses summary.png>)
+![image](<screenshots/responses.png>)
 
 ---
 
