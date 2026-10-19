@@ -3,6 +3,7 @@
 A small survey app I built using React, TypeScript, Express, and MongoDB. An author can create surveys, add questions, publish them, collect responses, and view the results. Respondents can fill out published surveys using a separate link.
 
 **Live app:** https://survey-project-ten.vercel.app (author)
+
 respondent url: https://survey-project-ten.vercel.app/respond/<survey-id>
 
 **Live API:** https://survey-project-7ej2.onrender.com
@@ -37,7 +38,7 @@ The author can preview a survey before publishing it and delete drafts that are 
 
 The dashboard displays surveys ten at a time and can filter them by status. The results page shows the total number of responses, option counts, average ratings, charts, and text answers. Individual responses are also displayed with pagination.
 
-## Built with
+## Tech stack
 
 - **Frontend:** React, TypeScript, Vite
 - **Backend:** Express, TypeScript, Node.js
@@ -155,7 +156,7 @@ The frontend is hosted on Vercel, the API on Render, and the database on MongoDB
 
 The live database contains fictional demo data created using the seed script.
 
-## Known limitations
+## Limitations
 
 - There is no login, so the author pages are not protected.
 - Published survey questions cannot be edited.
@@ -166,5 +167,5 @@ The live database contains fictional demo data created using the seed script.
 ## Documentation
 
 - [API documentation](docs/api.md)
-- [Architecture](docs/architecture.md)
-- [Acceptance checklist](docs/acceptance.md)
+- [Architecture](docs/domainAndArchitecture.md)
+- [Acceptance checklist](docs/checklist.md)
