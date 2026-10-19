@@ -169,3 +169,5 @@ The live database contains fictional demo data created using the seed script.
 - [API documentation](docs/api.md)
 - [Architecture](docs/domainAndArchitecture.md)
 - [Acceptance checklist](docs/checklist.md)
+- Demo vedio :
+[Watch the project demo on Loom](https://www.loom.com/share/fc6c14a7bcd0462da016f952352cc3c6)
