@@ -1,130 +1,293 @@
-## 3. Acceptance Checklist
+# Acceptance Checklist
 
-### 1. Draft Editing and Preview
+Tested locally with Docker MongoDB, the backend on `localhost:4000` and the frontend on `localhost:5173`, after running `npm run reset` and `npm run seed`. 
 
-**Steps**
-- Create a survey draft containing all five question types.
-- Edit and delete a question.
-- Add and delete a choice option.
-- Save the survey, reload it, and check the changes.
-- Try adding a sixth question.
-- Open the preview.
 
-**Expected:** Changes should remain after saving and reloading. The application should reject a sixth question. The preview should show the latest survey form without creating a response.
 
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add a screenshot or relevant API response.]
-
-### 2. Publication Validation
+## 1. Draft editing and preview
 
 **Steps**
-- Try publishing an empty survey.
-- Try publishing a survey with an invalid question or choice definition.
-- Correct the definitions and publish the survey.
-- Try submitting a response directly through the API while the survey is still a draft.
+1. Create a draft survey with one question of each type: short text, long text, single choice, multiple choice and rating.
+2. Edit the text of one question and delete another question.
+3. Add a choice option and remove one.
+4. Reload the page.
+5. Try to add a sixth question.
+6. Open Preview.
 
-**Expected:** Invalid surveys should not be published, and the application should explain the problem clearly. A valid survey should publish successfully. Direct API submissions to a draft should be rejected.
+**Expected:** Changes are still there after reload. A sixth question is not allowed. Preview shows the current form and does not create a response.
 
-**Actual:** [Record what happened.]
+**Actual:** The draft saved all five question types. The edit, the deleted question and the added and removed options were all still there after reloading. When the survey had five questions, the Add question button was disabled and the message "A survey can have only 5 questions" appeared. A direct API call for a sixth question returned 409. Preview showed the current form with the submit button disabled, and the response count stayed the same.
 
-**Evidence:** [Add screenshots or API responses.]
+**Evidence**
 
-### 3. Published Questions Stay Fixed
+> **Screenshot 1:** editor with all five question types
+>
+> &nbsp;
+>
+> &nbsp;
 
-**Steps**
-- Publish a survey.
-- Try editing, adding, or deleting questions and choice options through the browser.
-- Repeat these attempts through the API.
-- If responses already exist, try making the changes again.
-- Try publishing repeatedly or performing an invalid lifecycle transition.
+> **Screenshot 2:** editor after edit, delete and reload
+>
+> &nbsp;
+>
+> &nbsp;
 
-**Expected:** The published survey's questions and options should remain unchanged. Repeated publishing or invalid lifecycle transitions should not reset or alter the survey definition.
+> **Screenshot 3:** sixth question blocked (disabled button and message)
+>
+> &nbsp;
+>
+> &nbsp;
 
-**Actual:** [Record what happened.]
+> **Screenshot 4:** preview page
+>
+> &nbsp;
+>
+> &nbsp;
 
-**Evidence:** [Add screenshots or API responses showing the attempts and results.]
+> **API response:** sixth question rejected (409)
+>
+> &nbsp;
 
-### 4. Valid Answers Persist
+---
 
-**Steps**
-- Start the application and its dependencies using Docker Compose.
-- Submit valid answers covering all five question types.
-- Submit another response that skips an optional question.
-- Reload the responses and check the saved answers and response count.
-- Restart the API and dependency stack without deleting the data volumes.
-
-**Expected:** Valid responses should be saved correctly, including responses that skip optional questions. The answers and response count should remain available after restarting the application and dependencies.
-
-**Actual:** [Record what happened.]
-
-**Evidence:** [Add screenshots or API responses before and after restarting.]
-
-### 5. Invalid Answers Are Rejected by the API
-
-**Steps**
-
-Send direct API requests containing each of these invalid cases:
-
-- A blank answer to a required question.
-- An answer with the wrong data type.
-- An unknown question ID.
-- An unknown choice option.
-- The same question answered more than once in one submission.
-- An empty answer to a required checkbox question.
-- Ratings of `0`, `6`, and `2.5`.
-
-**Expected:** Every invalid submission should be rejected. No invalid response should be saved, and the response count should not increase.
-
-**Actual:** [Record the result of each case.]
-
-**Evidence:** [Add the API requests and their responses.]
-
-### 6. Closing Stops New Responses
+## 2. Publication validation
 
 **Steps**
-- Open a published survey in the respondent view.
-- Close the survey from the author screen.
-- Try submitting the response from the already-open respondent form.
-- Check the existing responses and results.
-- Open the respondent view again.
+1. Click Publish on an empty survey.
+2. Click Publish on a survey where a choice question has only one option.
+3. Add the missing option and publish again.
 
-**Expected:** The API should reject the submission after the survey is closed, even if the form was opened earlier. Existing responses and results should remain available, and the respondent screen should clearly indicate that the survey is closed.
+**Expected:** The empty survey and the invalid survey do not publish and show a clear message. The corrected survey publishes. 
+**Actual:** Publishing the empty survey failed with "A survey needs at least one question". Publishing with a one-option choice question failed with "A choice question needs at least two options". After adding the second option, the survey published and its status changed to Published. 
 
-**Actual:** [Record what happened.]
+**Evidence**
 
-**Evidence:** [Add screenshots or API responses.]
+> **Screenshot 1:** error when publishing an empty survey
+>
+> &nbsp;
+>
+> &nbsp;
 
-### 7. Survey and Response Lists Support Pagination
+> **Screenshot 2:** error for the invalid choice question
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 3:** survey published successfully
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **API response:** direct submission to a draft (409)
+>
+> &nbsp;
+
+---
+
+## 3. Published questions stay fixed
 
 **Steps**
-- Use seeded data to create enough surveys and responses for multiple pages.
-- Navigate through several pages of both lists.
-- Check the API requests and total counts.
-- With the data unchanged, revisit pages and check their order and contents.
-- Test the status filter and confirm that changing it resets pagination appropriately.
-- Check the first page, last page, empty results, and a page beyond the available results.
-- Try invalid and over-limit pagination values.
-- Check how the interface handles loading and request failures.
+1. Publish a survey.
+2. In the editor, try to edit, add or remove a question or option.
 
-**Expected:** Both lists should use server-side pagination and show correct totals. Results should have a stable order without overlapping records between pages when the data is unchanged. Filters and invalid pagination values should be handled correctly, and loading or failure states should be clear.
+**Expected:** Questions and options stay exactly the same, including after responses exist. 
 
-**Actual:** [Record what happened.]
+**Actual:** After publishing, the edit option is not seen for that survey. Veiw Responses appears.
 
-**Evidence:** [Add screenshots and relevant API requests and responses.]
+**Evidence**
+
+> **Screenshot 1:** editor after publishing (editing locked)
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **API responses:** edit, add, delete and second publish all returning 409
+>
+> &nbsp;
+>
+> &nbsp;
+
+---
+
+## 4. Valid answers persist
+
+**Steps**
+1. Run `docker compose up -d`.
+2. Submit a response that answers all five question types.
+3. Open the results and the response list.
+5. Restart the API and the database (`docker compose restart`, without deleting volumes).
+6. Open the results and the response list again.
+
+**Expected:** Both responses save. The answers and the response count are the same after the restart.
+
+**Actual:** Both submissions returned 201 and showed the confirmation screen. The results showed 2 responses and the response list showed both sets of answers. After restarting the database and the API without deleting volumes, the count and answers were unchanged.
+
+**Evidence**
+
+> **Screenshot 1:** respondent form filled in
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 2:** submission confirmation
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 3:** response count and answers before the restart
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 4:** response count and answers after the restart
+>
+> &nbsp;
+>
+> &nbsp;
+
+---
+
+## 5. Invalid answers are rejected by the API
+
+**Steps:** Send each of these directly to `POST /surveys/:id/responses`, and check the response count before and after.
+
+| Case | Expected | Actual |
+|------|----------|--------|
+| Blank answer to a required question | 400 | 400 |
+| Wrong answer type (number for a text question) | 400 | 400 |
+| Unknown question id | 400 | 400 |
+| Unknown option | 400 | 400 |
+
+**Expected:** Every request fails, nothing is saved, and the response count does not change.
+
+**Actual:** All requests were rejected with 400 and a message naming the problem. The response count was the same before and after.
+
+**Evidence**
+
+> **Screenshot / API response:** the requests and their 400 responses
+>
+> &nbsp;
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot / API response:** response count before and after (unchanged)
+>
+> &nbsp;
+
+---
+
+## 6. Closing stops new responses
+
+**Steps**
+1. Open a published survey's respondent form in one browser tab and fill it in without submitting.
+2. In another tab, close the survey from the author screen.
+3. Submit the first tab.
+4. Try opening survey from response page
+
+**Expected:** The submission is rejected. Existing responses and results are still available. The respondent screen says the survey is closed.
+
+**Actual:** After the survey was closed, submitting the already-open form failed with "This survey is closed" (409), and the typed answers stayed in the form. The existing responses and results were still available on the author side. 
+
+**Evidence**
+
+> **Screenshot 1:** error shown on the already-open form after the survey was closed
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 2:** respondent screen showing the closed message after reload
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 3:** results and responses still available after closing
+>
+> &nbsp;
+>
+> &nbsp;
+
+---
+
+## 7. Both lists paginate
+
+**Steps**
+1. Seed the data (`npm run seed`).
+2. On the dashboard, go through several pages and watch the Network tab.
+3. Change the status filter, then change the page size, and check that it goes back to page 1.
+4. Go to the first page, the last page and a page beyond the end.
+5. Repeat the page checks on the response list of "Big survey with many responses" (27 responses).
+6. Call the API with `page=0`, `pageSize=51` and `page=abc`.
+7. Stop the backend and reload the page.
+
+**Expected:** Each request returns only one page, with the correct `total`. Pages have a fixed order with no overlaps. A page past the end gives an empty list with the right totals. Invalid values return 400. Loading and error states show.
+
+**Actual:** With 31 seeded surveys, every page request (`?page=2&pageSize=10`) returned only that page's items with `total` 31, and the order stayed the same on repeat visits with no overlap. Changing the status filter or the page size went back to page 1. A page beyond the end returned an empty list with the correct totals. `page=0`, `pageSize=51` and `page=abc` returned 400. The response list for the big survey paged the same way (27 responses, 3 pages at 10 per page). The UI showed a loading message while fetching and an error message with a retry button when the backend was stopped.
+
+**Evidence**
+
+> **Screenshot 1:** dashboard page 2 with the Network request showing `page=2&pageSize=10`
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 2:** status filter changed and the list back on page 1
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 3:** response list page 2 with its Network request
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 4:** loading state
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **Screenshot 5:** error state with the retry button
+>
+> &nbsp;
+>
+> &nbsp;
+
+> **API responses:** page beyond the end, and the 400 errors for invalid values
+>
+> &nbsp;
+>
+> &nbsp;
+
+---
 
 ### 8. Results Include All Responses
 
 **Steps**
-- Create a survey with known responses across multiple response-list pages.
-- Check the text answers and the count for each option.
-- Verify the total number of submissions and the average ratings.
-- Change the response-list page and check whether the summary changes.
-- Check results for skipped optional answers.
-- Check the results for a survey with no responses.
 
-**Expected:** Results should include all responses, not just those on the currently displayed page. Option counts, total submissions, and rating averages should match the full dataset. Changing the response-list page should not change the summaries. Skipped optional answers and surveys with no responses should be displayed correctly.
+1. Open a published survey that has responses.
+2. View the response summary and the list of responses.
 
-**Actual:** [Record what happened.]
+**Expected:** The summary displays the total number of responses, option counts, the average rating, and text answers based on all responses. The response list displays each submitted response along with its answers.
 
-**Evidence:** [Add screenshots or API responses that show the results and calculations.]
+**Actual:** The summary displayed the total number of responses, option counts, the average rating, and text answers correctly. The response list displayed each submitted response with its answers and was paginated correctly.
+---
+
+## Known limitations
+
+- No login, so author pages are not protected (out of scope).
+- Published survey questions cannot be edited (out of scope).
+- Saving replaces the whole survey document, so two edits at the same moment could overwrite each other.
+- The free API host sleeps when idle, so the first request on the live site can be slow.
