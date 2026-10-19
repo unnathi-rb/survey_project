@@ -165,6 +165,7 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 ![image](<screenshots/responses.png>)
 
 ---
+## Project Demo: [Watch the project demo on Loom](https://www.loom.com/share/fc6c14a7bcd0462da016f952352cc3c6)
 
 ## Known limitations
 
