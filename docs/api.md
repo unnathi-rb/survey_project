@@ -8,7 +8,7 @@ All requests and responses use JSON. There is no login required. The API has two
 
 Errors return a readable message like `{ "error": "Survey not found" }`.
 
-A `400` error means the request contains invalid data, a `404` means the survey or question doesn't exist, and a `409` means the request is valid but the survey is in the wrong state. Database errors are handled internally and are never exposed to the user.
+A `400` error means the request contains invalid data, a `404` means the survey or question doesn't exist, and a `409` means the request is valid but the survey is in the wrong state. Anything unexpected, such as a database failure, returns `500` with a plain message and no internal details. Malformed JSON returns `400`.
 
 ## Pagination
 
@@ -61,8 +61,6 @@ You can add a question using `POST /surveys/:id/questions`, providing its type a
 Use `PATCH /surveys/:id/questions/:questionId` to update a question's label, helper text, or required setting. Use `DELETE /surveys/:id/questions/:questionId` to remove a question.
 
 To change the order of questions, use `PATCH /surveys/:id/questions/:questionId/move` with the direction set to `up` or `down`. A question cannot move beyond the first or last position.
-
-You can duplicate a question using `POST /surveys/:id/questions/:questionId/duplicate`. The copy and its options receive new IDs. The five-question limit still applies.
 
 For choice questions, use `POST /surveys/:id/questions/:questionId/options` to add an option and `DELETE /surveys/:id/questions/:questionId/options/:optionId` to remove one. Only choice questions can have options.
 

@@ -95,16 +95,23 @@ describe("SurveyResponse", () => {
     expect(response.answers.length).toBe(4);
   });
 
-    it("lets any question be skipped", () => {
+  it("lets an optional question be skipped", () => {
     const s = makeSurvey();
-    const response = SurveyResponse.create(s.survey, []);
-    expect(response.answers.length).toBe(0);
+    // the rating is optional, so answering only the required questions is fine
+    const response = SurveyResponse.create(s.survey, validAnswers(s));
+    expect(response.answers.length).toBe(3);
   });
 
-  it("does not save a blank text answer", () => {
+  it("does not accept an empty submission when questions are required", () => {
     const s = makeSurvey();
-    const answers = [{ questionId: s.text.id, value: "   " }];
-    const response = SurveyResponse.create(s.survey, answers);
-    expect(response.answers.length).toBe(0);
+    expect(() => SurveyResponse.create(s.survey, [])).toThrow("required");
+  });
+
+  it("does not accept a blank answer to a required text question", () => {
+    const s = makeSurvey();
+    const answers = validAnswers(s).map((a) =>
+      a.questionId === s.text.id ? { ...a, value: "   " } : a,
+    );
+    expect(() => SurveyResponse.create(s.survey, answers)).toThrow("required");
   });
 });

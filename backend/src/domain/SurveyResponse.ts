@@ -1,3 +1,4 @@
+import { DomainError } from "./DomainError";
 import { randomUUID } from "node:crypto";
 import { Rating } from "./Rating";
 import type { Survey } from "./survey";
@@ -97,10 +98,10 @@ export class SurveyResponse {
   static create(survey: Survey, rawAnswers: RawAnswer[]): SurveyResponse {
     // Rule 1: only a published survey accepts answers.
     if (survey.status === "draft") {
-      throw new Error("This survey is not available yet");
+      throw new DomainError("This survey is not available yet");
     }
     if (survey.status === "closed") {
-      throw new Error("This survey is closed");
+      throw new DomainError("This survey is closed");
     }
 
     const problems: string[] = [];
@@ -142,7 +143,7 @@ export class SurveyResponse {
 
     // If anything went wrong, stop and list everything at once.
     if (problems.length > 0) {
-      throw new Error("Invalid response: " + problems.join("; "));
+      throw new DomainError("Invalid response: " + problems.join("; "), "invalid");
     }
 
     return new SurveyResponse(survey.id, answers);

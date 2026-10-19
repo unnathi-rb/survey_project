@@ -1,3 +1,4 @@
+import { DomainError } from "./DomainError";
 import { randomUUID } from "node:crypto";
 import type { SurveyStatus } from "./SurveyStatus";
 import type { QuestionType } from "./Questiontype";
@@ -31,7 +32,7 @@ export class Survey {
   // Questions can only be changed while the survey is a draft.
   private mustBeDraft() {
     if (this.status !== "draft") {
-      throw new Error("Only a draft survey can be changed");
+      throw new DomainError("Only a draft survey can be changed");
     }
   }
 
@@ -39,7 +40,7 @@ export class Survey {
   private findQuestion(questionId: string): Question {
     const question = this.questions.find((q) => q.id === questionId);
     if (!question) {
-      throw new Error("Question not found");
+      throw new DomainError("Question not found", "not_found");
     }
     return question;
   }
@@ -47,7 +48,7 @@ export class Survey {
   addQuestion(type: QuestionType, label: string): Question {
     this.mustBeDraft();
     if (this.questions.length >= MAX_QUESTIONS) {
-      throw new Error("A survey can have at most 5 questions");
+      throw new DomainError("A survey can have at most 5 questions");
     }
     const question = createQuestion(type, label);
     this.questions.push(question);
@@ -78,7 +79,7 @@ export class Survey {
     const target = direction === "up" ? index - 1 : index + 1;
 
     if (target < 0 || target >= this.questions.length) {
-      throw new Error("The question cannot move " + direction);
+      throw new DomainError("The question cannot move " + direction);
     }
 
     this.questions.splice(index, 1);        // take it out
@@ -90,7 +91,7 @@ export class Survey {
     const isChoice =
       question.type === "single_choice" || question.type === "multiple_choice";
     if (!isChoice) {
-      throw new Error("Only choice questions can have options");
+      throw new DomainError("Only choice questions can have options");
     }
     const option = createOption(text);
     question.options.push(option);
@@ -126,12 +127,12 @@ export class Survey {
 
   publish() {
     if (this.status !== "draft") {
-      throw new Error("Only a draft survey can be published");
+      throw new DomainError("Only a draft survey can be published");
     }
 
     const problems = this.findPublishProblems();
     if (problems.length > 0) {
-      throw new Error("Cannot publish: " + problems.join("; "));
+      throw new DomainError("Cannot publish: " + problems.join("; "));
     }
 
     this.status = "published";
@@ -139,12 +140,12 @@ export class Survey {
     // Only a draft can be deleted.
   assertCanBeDeleted() {
     if (this.status !== "draft") {
-      throw new Error("Only a draft survey can be deleted");
+      throw new DomainError("Only a draft survey can be deleted");
     }
   }
   close() {
     if (this.status !== "published") {
-      throw new Error("Only a published survey can be closed");
+      throw new DomainError("Only a published survey can be closed");
     }
     this.status = "closed";
   }

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { API_URL } from "../api";
@@ -322,9 +321,7 @@ export default function Editor() {
       ))}
 
       <div className="card">
-        <h3>
-          Add a question ({survey.questions.length} of {MAX_QUESTIONS})
-        </h3>
+        <h3>Add a question</h3>
 
         <div className="option-row">
           <select
@@ -351,7 +348,7 @@ export default function Editor() {
           </button>
         </div>
 
-        {full && <p>A survey can have at most {MAX_QUESTIONS} questions.</p>}
+        {full && <p>A survey can have only {MAX_QUESTIONS} questions.</p>}
       </div>
 
       <div className="actions">
@@ -371,4 +368,3 @@ export default function Editor() {
     </div>
   );
 }
-

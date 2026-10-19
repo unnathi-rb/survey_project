@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import { connectToDatabase } from "./infrastructure/db";
 import { authorRoutes } from "./api/authorRoutes";
@@ -16,6 +17,16 @@ app.get("/health", (req, res) => {
 
 app.use(authorRoutes);
 app.use(respondentRoutes);
+
+// Last safety net: bad JSON, or a database error in a route, ends up here.
+// The client never sees stack traces or database details.
+app.use((error: any, req: Request, res: Response, next: NextFunction) => {
+  if (error?.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Request body is not valid JSON" });
+  }
+  console.error(error);
+  res.status(500).json({ error: "Something went wrong. Please try again." });
+});
 
 const PORT = Number(process.env.PORT) || 4000;
 
