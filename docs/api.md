@@ -10,6 +10,15 @@ Errors return a readable message like `{ "error": "Survey not found" }`.
 
 A `400` error means the request contains invalid data, a `404` means the survey or question doesn't exist, and a `409` means the request is valid but the survey is in the wrong state. Anything unexpected, such as a database failure, returns `500` with a plain message and no internal details. Malformed JSON returns `400`.
 
+Example error responses:
+
+```json
+{ "error": "Survey not found" }
+```
+```json
+{ "error": "Only a draft survey can be changed" }
+```
+
 ## Pagination
 
 Survey lists and response lists support pagination using `page` and `pageSize`. By default, `page` is `1` and `pageSize` is `10`. The page must be a whole number greater than or equal to 1, and pageSize must be between 1 and 50.
@@ -30,15 +39,45 @@ Example response:
 }
 ```
 
+Example error responses (`400`):
+
+```json
+{ "error": "page must be a whole number of 1 or more" }
+```
+```json
+{ "error": "pageSize cannot be more than 50" }
+```
+
 ## Author Routes
 
 ### Create a survey — `POST /surveys`
 
 Creates a new survey as a draft with no questions. Send a title and an optional description. The title is required and must be text. A successful request returns `201` with the new survey.
 
+Request:
+
+```json
+{ "title": "Week 1 check-in", "description": "How is your first week going?" }
+```
+
+Response `201`:
+
+```json
+{
+  "id": "3a84f6ba-9e60-48b3-90f1-8b89e7ebd6be",
+  "title": "Week 1 check-in",
+  "description": "How is your first week going?",
+  "status": "draft",
+  "questions": [],
+  "createdAt": "2026-10-19T08:30:00.000Z"
+}
+```
+
 ### List surveys — `GET /surveys`
 
-Returns a paginated list of surveys. You can use `page` and `pageSize` to control pagination and optionally filter by status: `draft`, `published`, or `closed`. The status filter is applied before pagination.
+Returns a paginated list of surveys. You can use `page` and `pageSize` to control pagination and optionally filter by status: `draft`, `published`, or `closed`. The status filter is applied before pagination. An invalid status returns `400` with `status must be draft, published or closed`.
+
+Example: `GET /surveys?status=published&page=2&pageSize=10`
 
 ### Get one survey — `GET /surveys/:id`
 
@@ -56,7 +95,32 @@ Only draft surveys can be deleted. A successful deletion returns `204` with no r
 
 You can only edit surveys while they are in the `draft` state. Published and closed surveys cannot be changed. Trying to edit one returns `409` with `Only a draft survey can be changed`.
 
-You can add a question using `POST /surveys/:id/questions`, providing its type and label. Each survey can have a maximum of five questions.
+You can add a question using `POST /surveys/:id/questions`, providing its type and label. Each survey can have a maximum of five questions. A sixth question returns `409` with `A survey can have at most 5 questions`.
+
+Request:
+
+```json
+{ "type": "single_choice", "label": "How is the team?" }
+```
+
+Response `201`: the updated survey, with the new question at the end:
+
+```json
+{
+  "id": "3a84f6ba-...",
+  "status": "draft",
+  "questions": [
+    {
+      "id": "7fe1c2d0-...",
+      "type": "single_choice",
+      "label": "How is the team?",
+      "helperText": "",
+      "required": false,
+      "options": []
+    }
+  ]
+}
+```
 
 Use `PATCH /surveys/:id/questions/:questionId` to update a question's label, helper text, or required setting. Use `DELETE /surveys/:id/questions/:questionId` to remove a question.
 
@@ -70,11 +134,20 @@ Successful editing requests return the updated survey. Invalid input returns `40
 
 Publishes a draft survey. Before publishing, it must have a non-blank title, between one and five questions, a label for every question, and at least two different, non-blank options for every choice question.
 
-If any requirement is not met, the API returns `409` and lists the problems. Once published, the questions cannot be changed.
+If any requirement is not met, the API returns `409` and lists the problems. Once published, the questions cannot be changed. Publishing a survey that is not a draft also returns `409`, and nothing is reset.
+
+Example error responses (`409`):
+
+```json
+{ "error": "Cannot publish: Question 1: A choice question needs at least two options" }
+```
+```json
+{ "error": "Only a draft survey can be published" }
+```
 
 ## Closing a Survey — `POST /surveys/:id/close`
 
-Closes a published survey so that no more responses can be submitted. Existing responses and results remain available. Only published surveys can be closed; otherwise, the API returns `409`.
+Closes a published survey so that no more responses can be submitted. Existing responses and results remain available. Only published surveys can be closed; otherwise, the API returns `409` with `Only a published survey can be closed`.
 
 ## View Responses — `GET /surveys/:id/responses`
 
@@ -143,3 +216,59 @@ The server validates every answer, even if the browser has already checked it. T
 Required questions must have a real answer. Missing answers, blank text, and empty lists are not accepted for required questions. Optional questions can be skipped. Ratings such as `0`, `6`, or `2.5` are rejected.
 
 If any answer is invalid, nothing is saved, and the API returns `400` with a message listing the problems. A successful submission returns `201` with the saved response. A missing survey returns `404`, while draft or closed surveys return `409` with an appropriate message.
+
+Request:
+
+```json
+{
+  "answers": [
+    { "questionId": "q-name", "value": "Asha" },
+    { "questionId": "q-mood", "value": "o-good" },
+    { "questionId": "q-tools", "value": ["o-slack", "o-jira"] },
+    { "questionId": "q-rating", "value": 4 }
+  ]
+}
+```
+
+Response `201`:
+
+```json
+{
+  "id": "c91d0e7a-...",
+  "surveyId": "3a84f6ba-...",
+  "answers": [
+    { "questionId": "q-name", "value": "Asha" },
+    { "questionId": "q-mood", "value": "o-good" },
+    { "questionId": "q-tools", "value": ["o-slack", "o-jira"] },
+    { "questionId": "q-rating", "value": 4 }
+  ],
+  "submittedAt": "2026-10-19T09:12:30.000Z"
+}
+```
+
+Example error responses:
+
+```json
+{ "error": "Invalid response: \"Your name?\": this question is required" }
+```
+(`400`, required answer missing or blank)
+
+```json
+{ "error": "Invalid response: Unknown question: this-id-does-not-exist" }
+```
+(`400`, unknown question)
+
+```json
+{ "error": "Invalid response: \"Team mood?\": not a valid option" }
+```
+(`400`, unknown option)
+
+```json
+{ "error": "Invalid response: \"Rate your week\": Rating must be between 1 and 5" }
+```
+(`400`, rating 0 or 6)
+
+```json
+{ "error": "This survey is closed" }
+```
+(`409`, closed survey. A draft returns `This survey is not available yet`.)
