@@ -61,28 +61,8 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** Publishing the empty survey failed with "A survey needs at least one question". Publishing with a one-option choice question failed with "A choice question needs at least two options". After adding the second option, the survey published and its status changed to Published. 
 
 **Evidence**
-
-> **Screenshot 1:** error when publishing an empty survey
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 2:** error for the invalid choice question
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** survey published successfully
->
-> &nbsp;
->
-> &nbsp;
-
-> **API response:** direct submission to a draft (409)
->
-> &nbsp;
+![image](screenshots/valid survey.png)
+![image](screenshots/valid question survey.png)
 
 ---
 
@@ -98,18 +78,11 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** editor after publishing (editing locked)
->
-> &nbsp;
->
-> &nbsp;
+**Evidence**
 
-> **API responses:** edit, add, delete and second publish all returning 409
->
-> &nbsp;
->
-> &nbsp;
+![Published survey](<screenshots/no edit for published.png>)
 
+![Draft survey](<screenshots/only draft editable.png>)
 ---
 
 ## 4. Valid answers persist
