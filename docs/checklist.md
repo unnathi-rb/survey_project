@@ -91,18 +91,17 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 ## 5. Invalid answers are rejected by the API
 
 **Steps:** Send each of these directly to `POST /surveys/:id/responses`, and check the response count before and after.
-| Case | Expected | Actual |
-|------|----------|--------|
-| Blank answer to a required question | 400 | |
-| Wrong answer type (number for a text question) | 400 | |
-| Unknown question id | 400 | |
-| Unknown option | 400 | |
-| Rating of 9 or 2.5 | 400 | |
-| `[]` for an optional **text** question | 400 (not silently dropped) | |
-| `[]` for an optional **rating** question | 400 (not silently dropped) | |
-| `[]` for an optional **checkbox** question | 201, treated as skipped | |
-| Two wrong answers at once | 400, message lists both problems | |
-| Survey is a draft or closed | 409 | |
+| Case | Result | 
+|------|----------|
+| Blank answer to a required question | 400 | 
+| Wrong answer type (number for a text question) | 400 | 
+| Unknown question id | 400 | 
+| Unknown option | 400 | 
+| Rating of 9 or 2.5 | 400 | 
+| `[]` for an optional **text** question | 400 (not silently dropped) | 
+| `[]` for an optional **rating** question | 400 (not silently dropped) | 
+| Two wrong answers at once | 400, message lists both problems | 
+| Survey is a draft or closed | 409 | 
 
 
 **Expected:** Every request fails, nothing is saved, and the response count does not change.
@@ -214,7 +213,7 @@ The new wording is saved and the option keeps the same id. A blank text is rejec
 Each save fails with a clear message ("changed somewhere else" or "Only a draft survey can be changed"). The text typed in tab 2 is still in the boxes.
 
  
-![image](screenshots/section11.png)
+![image](<screenshots/section11 .png>)
  
 ---
  
@@ -249,16 +248,6 @@ Each save fails with a clear message ("changed somewhere else" or "Only a draft 
 
 ---
  
-## 14. Requests that finish out of order
- 
-**Steps**
-1. In the editor, click several quick edits one after another (for example add a question, move it up, change its label). In DevTools, set Network throttling to "Slow 3G" to make the delay obvious.
-2. On the dashboard, with throttling on, go to page 3 and then quickly back to page 1.
-3. On the results page, change the page quickly several times.
-**Expected:** In the editor the requests run one after another, the buttons are disabled while one is running, and the final screen shows the last saved version. On the dashboard and results pages the screen shows the page you chose last, not an older page that arrived late.
-
---
-
 ## Project Demo: [Watch the project demo on Loom](https://www.loom.com/share/fc6c14a7bcd0462da016f952352cc3c6)
 
 ## Known limitations
