@@ -20,6 +20,14 @@ Questions and options each get their own id when they are created. Answers store
 those ids rather than the text, so fixing a typo in a draft never breaks an
 answer.
 
+### Survey lifecycle
+
+![image](surveyflow.png)
+
+A survey starts as a draft, where it can be edited or deleted. Publishing
+locks its questions. Closing stops new responses. Responses can be viewed once the
+survey is published or closed.*
+
 ## Value objects
 
 A few small concepts hold their own rules. A **Rating** can only be a whole
@@ -49,6 +57,12 @@ the API hits the same checks as one coming from the browser.
 
 ## How the code is laid out
 
+![image](architecture.png)
+
+*Figure 2: The browser sends HTTP JSON to the API routes. The API calls the domain
+for the rules, and uses the infrastructure to load and save. The infrastructure
+shapes saved data back into domain objects and reads and writes MongoDB.*
+
 The **domain** folder holds the survey, the response and the small building
 blocks, along with their tests.
 
@@ -58,9 +72,10 @@ into real domain objects.
 
 The **api** folder holds the Express routes. Each route does the same few
 things: check that the request has the right shape, load the survey, ask the
-domain to do the work, save the result, and send an answer back. The domain
-throws plain errors, and a small helper turns them into a 400, 404 or 409 so the
-browser gets a readable message.
+domain to do the work, save the result, and send an answer back. When a business
+rule is broken, the domain throws its own error type, and a small helper turns it
+into a 400, 404 or 409 so the browser gets a readable message. Any other error,
+such as a database failure, becomes a plain 500 with no internal details.
 
 The domain depends on nothing. The infrastructure depends on the domain, and the
 api depends on both.

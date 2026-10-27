@@ -19,34 +19,12 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** The draft saved all five question types. The edit, the deleted question and the added and removed options were all still there after reloading. When the survey had five questions, the Add question button was disabled and the message "A survey can have only 5 questions" appeared. A direct API call for a sixth question returned 409. Preview showed the current form with the submit button disabled, and the response count stayed the same.
 
 **Evidence**
-
-> **Screenshot 1:** editor with all five question types
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 2:** editor after edit, delete and reload
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** sixth question blocked (disabled button and message)
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** preview page
->
-> &nbsp;
->
-> &nbsp;
-
-> **API response:** sixth question rejected (409)
->
-> &nbsp;
+> Editor page:
+![image](screenshots/editor.png)
+> Preview page: 
+![image](screenshots/preview.png)
+> More than 5 questions not allwoed:
+![image](<screenshots/6th question.png>)
 
 ---
 
@@ -61,8 +39,10 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Actual:** Publishing the empty survey failed with "A survey needs at least one question". Publishing with a one-option choice question failed with "A choice question needs at least two options". After adding the second option, the survey published and its status changed to Published. 
 
 **Evidence**
-![image](screenshots/valid survey.png)
-![image](screenshots/valid question survey.png)
+> Empty survey cannot be published:
+![image](<screenshots/valid survey.png>)
+> Choice questions need options:
+![image](<screenshots/valid question survey.png>)
 
 ---
 
@@ -79,10 +59,11 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Evidence**
 
 **Evidence**
-
+> Published surveys have no edit option:
 ![Published survey](<screenshots/no edit for published.png>)
-
+> Only draft surveys are editable:
 ![Draft survey](<screenshots/only draft editable.png>)
+
 ---
 
 ## 4. Valid answers persist
@@ -91,7 +72,7 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 1. Run `docker compose up -d`.
 2. Submit a response that answers all five question types.
 3. Open the results and the response list.
-5. Restart the API and the database (`docker compose restart`, without deleting volumes).
+5. Restart the API and the database
 6. Open the results and the response list again.
 
 **Expected:** Both responses save. The answers and the response count are the same after the restart.
@@ -100,29 +81,11 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** respondent form filled in
->
-> &nbsp;
->
-> &nbsp;
+> Respondent form:
+![image](<screenshots/respondent page.png>)
+> Submission successful
+![image](screenshots/thankyou.png)
 
-> **Screenshot 2:** submission confirmation
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** response count and answers before the restart
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** response count and answers after the restart
->
-> &nbsp;
->
-> &nbsp;
 
 ---
 
@@ -132,37 +95,19 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 | Case | Expected | Actual |
 |------|----------|--------|
-| Blank answer to a required question | 400 | |
-| Wrong answer type (number for a text question) | 400 | |
-| Unknown question id | 400 | |
-| Unknown option | 400 | |
-| Rating of 9 or 2.5 | 400 | |
-| `[]` for an optional **text** question | 400 (not silently dropped) | |
-| `[]` for an optional **rating** question | 400 (not silently dropped) | |
-| `[]` for an optional **checkbox** question | 201, treated as skipped | |
-| Two wrong answers at once | 400, message lists both problems | |
-| Survey is a draft or closed | 409 | |
-| Body is not `{ "answers": [...] }` | 400 | |
+| Blank answer to a required question | 400 | 400 |
+| Unknown question id | 400 | 400 |
 
-**Expected:** Every rejected request saves nothing, and the response count does not change. Only the skipped optional checkbox is accepted.
 
-**Actual:** All requests were rejected with appropriate errors code and a message naming the problem. 
+**Expected:** Every request fails, nothing is saved, and the response count does not change.
+
+**Actual:** All requests were rejected with 400 and a message naming the problem. The response count was the same before and after.
 
 **Evidence**
-
-> **Screenshot / API response:** the requests and their 400 responses
->
-> &nbsp;
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot / API response:** response count before and after (unchanged)
->
-> &nbsp;
-
----
+> Required question not answered:
+![image](<screenshots/required not answered.png>)
+> invalid question ID:
+![image](<screenshots/invalid qiestionid.png>)
 
 ## 6. Closing stops new responses
 
@@ -178,25 +123,9 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** error shown on the already-open form after the survey was closed
->
-> &nbsp;
->
-> &nbsp;
+>respondent screen showing the closed message after reload
+![image](<screenshots/closed survey.png>)
 
-> **Screenshot 2:** respondent screen showing the closed message after reload
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** results and responses still available after closing
->
-> &nbsp;
->
-> &nbsp;
-
----
 
 ## 7. Both lists paginate
 
@@ -215,41 +144,9 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 
 **Evidence**
 
-> **Screenshot 1:** dashboard page 2 with the Network request showing `page=2&pageSize=10`
->
-> &nbsp;
->
-> &nbsp;
+> **Screenshot 1:** dashboard page with the Network request showing
+> ![image](screenshots/pagination.png)
 
-> **Screenshot 2:** status filter changed and the list back on page 1
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 3:** response list page 2 with its Network request
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 4:** loading state
->
-> &nbsp;
->
-> &nbsp;
-
-> **Screenshot 5:** error state with the retry button
->
-> &nbsp;
->
-> &nbsp;
-
-> **API responses:** page beyond the end, and the 400 errors for invalid values
->
-> &nbsp;
->
-> &nbsp;
 
 ---
 
@@ -263,139 +160,16 @@ Tested locally with Docker MongoDB, the backend on `localhost:4000` and the fron
 **Expected:** The summary displays the total number of responses, option counts, the average rating, and text answers based on all responses. The response list displays each submitted response along with its answers.
 
 **Actual:** The summary displayed the total number of responses, option counts, the average rating, and text answers correctly. The response list displayed each submitted response with its answers and was paginated correctly.
----
-## 9. Option text can be edited and option IDs stay the same
- 
-**Steps**
-1. In a draft, add a single-choice question with two options.
-2. Open `GET /surveys/:id` and note the id of the first option.
-3. Change the first option's text in the editor, click away, and reload.
-4. Open `GET /surveys/:id` again and compare the id.
-5. Try to change the option text to blank spaces.
-**Expected:** The new wording is saved and the option keeps the same id. A blank text is rejected with 400 and the old text stays.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot / API response:** option id before and after the edit (same id, new text)
->
-> &nbsp;
- 
-> **Screenshot:** blank option text rejected
->
-> &nbsp;
- 
----
- 
-## 10. Helper text (questions and options)
- 
-**Steps**
-1. In a draft, add helper text to a question and to one of its options. Click away and reload.
-2. Open Preview and the respondent form.
-3. Clear the helper text and reload.
-**Expected:** Helper text is saved, shown to respondents next to the question or option, and can be cleared.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot 1:** editor with question and option helper text after reload
->
-> &nbsp;
- 
-> **Screenshot 2:** respondent form showing both hints
->
-> &nbsp;
- 
----
- 
-## 11. A failed edit keeps what you typed
- 
-**Steps**
-1. Open a draft in the editor in two tabs.
-2. In tab 1, publish the survey.
-3. In tab 2 (not reloaded), type a new option text, a new question label and a new helper text, and press Add or click away.
-**Expected:** Each save fails with a clear message ("changed somewhere else" or "Only a draft survey can be changed"). The text typed in tab 2 is still in the boxes.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot:** error message with the typed text still in the box
->
-> &nbsp;
- 
----
- 
-## 12. Two edits at the same moment do not overwrite each other
- 
-**Steps**
-1. Open the same draft in two tabs.
-2. In tab 1, add a question.
-3. In tab 2 (not reloaded), add a different question.
-4. Reload tab 2.
-5. Repeat step 3 from tab 2 after the reload.
-6. Optional, to hit the exact same moment: send two `POST /surveys/:id/questions` requests together (for example two terminal windows, or `curl ... & curl ... &`) without a `version`.
-**Expected:** Step 3 is refused with 409 "changed somewhere else" and nothing is saved. After the reload tab 2 shows tab 1's question, and step 5 works. In step 6 exactly one request returns 201 and the other 409, and the survey has only the winner's question.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot 1:** the 409 message in tab 2
->
-> &nbsp;
- 
-> **Screenshot 2:** Network tab showing `"version"` in the request and the 409 status
->
-> &nbsp;
- 
-> **Screenshot 3:** survey after both requests (one question, version increased by one)
->
-> &nbsp;
- 
----
- 
-## 13. Publishing while another edit is in progress
- 
-**Steps**
-1. Open the same draft in two tabs.
-2. In tab 1, publish the survey.
-3. In tab 2 (not reloaded), edit a question label, add a question, and click Publish on the dashboard.
-**Expected:** Tab 2's edits are refused (409). The published survey has the same questions it had when tab 1 published it.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot:** tab 2 message, and the published survey unchanged
->
-> &nbsp;
- 
----
- 
-## 14. Requests that finish out of order
- 
-**Steps**
-1. In the editor, click several quick edits one after another (for example add a question, move it up, change its label). In DevTools, set Network throttling to "Slow 3G" to make the delay obvious.
-2. On the dashboard, with throttling on, go to page 3 and then quickly back to page 1.
-3. On the results page, change the page quickly several times.
-**Expected:** In the editor the requests run one after another, the buttons are disabled while one is running, and the final screen shows the last saved version. On the dashboard and results pages the screen shows the page you chose last, not an older page that arrived late.
- 
-**Actual:** _Fill in._
- 
-**Evidence**
- 
-> **Screenshot:** Network tab showing the editor requests running one after another
->
-> &nbsp;
- 
----
 
+![image](<screenshots/responses summary.png>)
+![image](<screenshots/responses.png>)
+
+---
+## Project Demo: [Watch the project demo on Loom](https://www.loom.com/share/fc6c14a7bcd0462da016f952352cc3c6)
 
 ## Known limitations
 
 - No login, so author pages are not protected (out of scope).
 - Published survey questions cannot be edited (out of scope).
+- Saving replaces the whole survey document, so two edits at the same moment could overwrite each other.
 - The free API host sleeps when idle, so the first request on the live site can be slow.
