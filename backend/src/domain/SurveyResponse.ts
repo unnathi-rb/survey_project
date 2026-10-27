@@ -1,163 +1,185 @@
-import { DomainError } from "./DomainError";
 import { randomUUID } from "node:crypto";
+import { DomainError } from "./DomainError";
 import { Rating } from "./Rating";
 import type { Survey } from "./survey";
-import type { Question } from "./Question";
-
-// An answer can be text, a number, or a list of option ids.
-export type AnswerValue = string | number | string[];
+import { countWords, type Question } from "./Question";
 
 // An answer we checked and decided to keep.
 export type Answer = {
   questionId: string;
-  value: AnswerValue;
+  value: string | string[] | number;
 };
 
 // An answer exactly as it arrives from outside. We don't trust it yet.
 export type RawAnswer = {
   questionId: string;
-  value: unknown;
+  value?: unknown;
 };
 
-// Did the person leave this question empty?
-function isEmpty(value: unknown): boolean {
+// Did the person skip this question? What counts as "skipped" depends on the type.
+// An empty list is only a skip for checkboxes. For text or rating it is the
+// WRONG TYPE, so it is checked (and rejected) like any other wrong answer.
+function isSkipped(question: Question, value: unknown): boolean {
   if (value === undefined || value === null) return true;
-  if (typeof value === "string" && value.trim() === "") return true;
-  if (Array.isArray(value) && value.length === 0) return true;
+
+  const isText = question.type === "short_text" || question.type === "long_text";
+  if (isText && typeof value === "string" && value.trim() === "") return true;
+
+  if (question.type === "multiple_choice" && Array.isArray(value) && value.length === 0) {
+    return true;
+  }
+
   return false;
 }
 
-// Checks ONE answer (that is not empty) against ONE question.
-// If it is fine: gives back the cleaned value and problem = null.
-// If it is wrong: gives back value = null and a problem message.
-function checkAnswer(question: Question, value: unknown) {
+// Checks ONE answer (that is not skipped).
+// Fine  -> { value: cleaned value }.   Wrong -> { problem: message }.
+function checkAnswer(
+  question: Question,
+  value: unknown,
+): { value: string | string[] | number } | { problem: string } {
   const name = '"' + question.label + '"';
 
-  // Text questions: the answer must be text.
   if (question.type === "short_text" || question.type === "long_text") {
     if (typeof value !== "string") {
-      return { value: null, problem: name + ": answer must be text" };
+      return { problem: name + ": answer must be text" };
     }
-    return { value: value.trim(), problem: null };
+    const text = value.trim();
+    if (question.maxWords !== null) {
+      const words = countWords(text);
+      if (words > question.maxWords) {
+        return {
+          problem: name + ": at most " + question.maxWords + " words (you wrote " + words + ")",
+        };
+      }
+    }
+    return { value: text };
   }
 
-  // Single choice: the answer must be the id of one real option.
   if (question.type === "single_choice") {
     const isRealOption = question.options.some((o) => o.id === value);
     if (typeof value !== "string" || !isRealOption) {
-      return { value: null, problem: name + ": not a valid option" };
+      return { problem: name + ": not a valid option" };
     }
-    return { value: value, problem: null };
+    return { value };
   }
 
-  // Multiple choice: the answer must be a list of real option ids.
   if (question.type === "multiple_choice") {
-    if (!Array.isArray(value)) {
-      return { value: null, problem: name + ": pick options from the list" };
+    const ids = new Set(question.options.map((o) => o.id));
+    const allReal =
+      Array.isArray(value) && value.every((v) => typeof v === "string" && ids.has(v));
+    if (!Array.isArray(value) || !allReal) {
+      return { problem: name + ": invalid options selected" };
     }
-    const picked: string[] = [];
-    for (const id of value) {
-      const isRealOption = question.options.some((o) => o.id === id);
-      if (typeof id !== "string" || !isRealOption) {
-        return { value: null, problem: name + ": not a valid option" };
-      }
-      if (!picked.includes(id)) {
-        picked.push(id); // same choice twice is counted once
-      }
-    }
-    return { value: picked, problem: null };
+    return { value: Array.from(new Set(value as string[])) }; // a repeated choice counts once
   }
 
-  // Rating: the only type left. It must be a number from 1 to 5.
+  // rating: the Rating class owns the "whole number 1 to 5" rule
   if (typeof value !== "number") {
-    return { value: null, problem: name + ": rating must be a number" };
+    return { problem: name + ": rating must be a number between 1 and 5" };
   }
   try {
-    const rating = Rating.create(value); // throws an error if it is not 1 to 5
-    return { value: rating.value, problem: null };
+    return { value: Rating.create(value).value };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid rating";
-    return { value: null, problem: name + ": " + message };
+    const reason = error instanceof Error ? error.message : "invalid rating";
+    return { problem: name + ": " + reason };
   }
 }
 
 export class SurveyResponse {
-  id: string;
-  surveyId: string;
-  answers: Answer[];
-  submittedAt: Date;
+  readonly id: string;
+  readonly surveyId: string;
+  readonly answers: Answer[];
+  readonly createdAt: Date;
 
-  private constructor(surveyId: string, answers: Answer[]) {
-    this.id = randomUUID();
+  constructor(
+    surveyId: string,
+    answers: Answer[],
+    restored?: { id?: string; createdAt?: Date },
+  ) {
+    this.id = restored?.id ?? randomUUID();
     this.surveyId = surveyId;
     this.answers = answers;
-    this.submittedAt = new Date();
+    this.createdAt = restored?.createdAt ?? new Date();
   }
 
-  // The only way to make a response. It checks everything first.
-  static create(survey: Survey, rawAnswers: RawAnswer[]): SurveyResponse {
-    // Rule 1: only a published survey accepts answers.
+  static create(survey: Survey, answers: RawAnswer[], createdAt?: Date): SurveyResponse {
+    const cleaned = SurveyResponse.validate(survey, answers);
+    return new SurveyResponse(survey.id, cleaned, { createdAt });
+  }
+
+  // Checks the whole submission and reports EVERY problem together.
+  // Wrong survey state  -> "conflict" (409).  Wrong answers -> "invalid" (400).
+  static validate(survey: Survey, answers: RawAnswer[]): Answer[] {
     if (survey.status === "draft") {
-      throw new DomainError("This survey is not available yet");
+      throw new DomainError("Survey is a draft and not available yet", "conflict");
     }
     if (survey.status === "closed") {
-      throw new DomainError("This survey is closed");
+      throw new DomainError("This survey is closed", "conflict");
     }
 
     const problems: string[] = [];
+    const questions = survey.questions;
+    const knownIds = new Set(questions.map((q) => q.id));
+    const seen = new Set<string>();
+    const given = new Map<string, unknown>();
 
-    // Rule 2: every answer must be for a real question, and only once.
-    const alreadySeen: string[] = [];
-    for (const raw of rawAnswers) {
-      const questionExists = survey.questions.some((q) => q.id === raw.questionId);
-      if (!questionExists) {
-        problems.push("Unknown question: " + raw.questionId);
-      }
-      if (alreadySeen.includes(raw.questionId)) {
-        problems.push("Question answered more than once: " + raw.questionId);
-      }
-      alreadySeen.push(raw.questionId);
-    }
-
-    // Rule 3: go through each question of the survey, one by one.
-    const answers: Answer[] = [];
-    for (const question of survey.questions) {
-      const raw = rawAnswers.find((r) => r.questionId === question.id);
-      const value = raw?.value;
-
-      if (isEmpty(value)) {
-        if (question.required) {
-          problems.push('"' + question.label + '": this question is required');
-        }
+    for (const answer of answers) {
+      if (!knownIds.has(answer.questionId)) {
+        problems.push("Unknown question: " + answer.questionId);
         continue;
       }
+      if (seen.has(answer.questionId)) {
+        problems.push("Question answered more than once: " + answer.questionId);
+        continue;
+      }
+      seen.add(answer.questionId);
+      given.set(answer.questionId, answer.value);
+    }
 
-      // Not empty: check that it is correct.
+    const cleaned: Answer[] = [];
+    for (const question of questions) {
+      const value = given.get(question.id);
+
+      if (isSkipped(question, value)) {
+        if (question.required) {
+          problems.push('Question "' + question.label + '" is required');
+        }
+        continue; // optional and left empty: nothing to save
+      }
+
       const result = checkAnswer(question, value);
-      if (result.problem !== null) {
+      if ("problem" in result) {
         problems.push(result.problem);
-      } else if (result.value !== null) {
-        answers.push({ questionId: question.id, value: result.value });
+      } else {
+        cleaned.push({ questionId: question.id, value: result.value });
       }
     }
 
-    // If anything went wrong, stop and list everything at once.
     if (problems.length > 0) {
-      throw new DomainError("Invalid response: " + problems.join("; "), "invalid");
+      throw new DomainError(problems.join("; "), "invalid");
     }
-
-    return new SurveyResponse(survey.id, answers);
+    return cleaned;
   }
-    // Rebuild a response from saved data (used when loading from the database).
+
+  toJSON() {
+    return {
+      id: this.id,
+      surveyId: this.surveyId,
+      answers: this.answers,
+      submittedAt: this.createdAt, // the API name the screens use
+    };
+  }
+
   static restore(data: {
     id: string;
     surveyId: string;
     answers: Answer[];
-    submittedAt: Date;
+    createdAt: Date;
   }): SurveyResponse {
-    const response = new SurveyResponse(data.surveyId, data.answers);
-    response.id = data.id;
-    response.submittedAt = data.submittedAt;
-    return response;
+    return new SurveyResponse(data.surveyId, data.answers, {
+      id: data.id,
+      createdAt: data.createdAt,
+    });
   }
 }

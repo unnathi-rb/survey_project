@@ -90,45 +90,55 @@ export default function ResultsPage() {
 
   // 1. Load the survey and the summary of ALL responses.
   useEffect(() => {
+    let ignore = false;
+
     async function load() {
-      setLoading(true);
-      setError("");
+      if (!ignore) setLoading(true);
+      if (!ignore) setError("");
 
       try {
         const surveyResponse = await fetch(API_URL + "/surveys/" + id);
 
         if (!surveyResponse.ok) {
-          setError("Survey not found.");
+          if (!ignore) setError("Survey not found.");
           return;
         }
 
-        setSurvey(await surveyResponse.json());
+        const surveyData = await surveyResponse.json();
+        if (!ignore) setSurvey(surveyData);
 
         const resultsResponse = await fetch(
           API_URL + "/surveys/" + id + "/results",
         );
 
         if (!resultsResponse.ok) {
-          setError("Could not load the results.");
+          if (!ignore) setError("Could not load the results.");
           return;
         }
 
-        setResults(await resultsResponse.json());
+        const resultsData = await resultsResponse.json();
+        if (!ignore) setResults(resultsData);
       } catch {
-        setError("Could not reach the server. Is the backend running?");
+        if (!ignore) setError("Could not reach the server. Is the backend running?");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
 
     load();
+
+    return () => {
+      ignore = true;
+    };
   }, [id, refresh]);
 
   // 2. Load one page of responses.
   useEffect(() => {
+    let ignore = false;
+
     async function loadList() {
-      setListLoading(true);
-      setListError("");
+      if (!ignore) setListLoading(true);
+      if (!ignore) setListError("");
 
       try {
         const url =
@@ -143,19 +153,24 @@ export default function ResultsPage() {
         const response = await fetch(url);
 
         if (!response.ok) {
-          setListError("Could not load the responses.");
+          if (!ignore) setListError("Could not load the responses.");
           return;
         }
 
-        setList(await response.json());
+        const listData = await response.json();
+        if (!ignore) setList(listData);
       } catch {
-        setListError("Could not reach the server.");
+        if (!ignore) setListError("Could not reach the server.");
       } finally {
-        setListLoading(false);
+        if (!ignore) setListLoading(false);
       }
     }
 
     loadList();
+
+    return () => {
+      ignore = true;
+    };
   }, [id, page, pageSize, refresh]);
 
   function changePageSize(newSize: number) {
@@ -224,8 +239,16 @@ export default function ResultsPage() {
         <p>No responses yet, so there is nothing to summarise.</p>
       )}
 
+      {/* Text questions (like "Name of employee") have nothing to summarise,
+          so only choice and rating questions get a summary card.
+          Their answers are shown in the Responses list below. */}
       {results.totalResponses > 0 &&
-        results.questions.map((question) => (
+        results.questions
+          .filter(
+            (question) =>
+              question.type !== "short_text" && question.type !== "long_text",
+          )
+          .map((question) => (
           <div key={question.questionId} className="card">
             <strong>{question.label}</strong>
             <small>{question.answeredCount} answered</small>

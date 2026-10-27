@@ -39,21 +39,19 @@ function buildSurvey(title: string) {
 
 type Built = ReturnType<typeof buildSurvey>;
 
-// Makes one response. The number i just changes the answers a little each time.
 function buildResponse(built: Built, i: number) {
   const answers = [
     { questionId: built.name.id, value: "Person " + (i + 1) },
-    { questionId: built.mood.id, value: built.moodIds[i % 3] },
+    { questionId: built.mood.id, value: built.moodIds[i % 3]! }, // Added !
     {
       questionId: built.tools.id,
-      value: [built.toolIds[i % 3], built.toolIds[(i + 1) % 3]],
+      value: [built.toolIds[i % 3]!, built.toolIds[(i + 1) % 3]!], // Added !
     },
     { questionId: built.rating.id, value: (i % 5) + 1 },
   ];
 
-  const response = SurveyResponse.create(built.survey, answers);
-  response.submittedAt = new Date(Date.now() - i * 1000); // spread over time
-  return response;
+  const submissionDate = new Date(Date.now() - i * 1000); // spread over time
+  return SurveyResponse.create(built.survey, answers, submissionDate);
 }
 
 async function seed() {

@@ -1,9 +1,9 @@
-
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { API_URL } from "../api";
+import { countWords } from "../words";
 
-type Option = { id: string; text: string };
+type Option = { id: string; text: string; helperText?: string };
 
 type Question = {
   id: string;
@@ -12,6 +12,7 @@ type Question = {
   helperText: string;
   options: Option[];
   required: boolean;
+  maxWords: number | null;
 };
 
 type Survey = {
@@ -124,6 +125,22 @@ export default function Preview() {
             />
           )}
 
+          {question.maxWords !== null &&
+            (question.type === "short_text" ||
+              question.type === "long_text") && (
+              <small
+                className={
+                  countWords(String(answers[question.id] ?? "")) >
+                  question.maxWords
+                    ? "error"
+                    : ""
+                }
+              >
+                {countWords(String(answers[question.id] ?? ""))} /{" "}
+                {question.maxWords} words
+              </small>
+            )}
+
           {question.type === "single_choice" &&
             question.options.map((option) => (
               <label key={option.id} className="choice">
@@ -134,6 +151,7 @@ export default function Preview() {
                   onChange={() => setAnswer(question.id, option.id)}
                 />
                 {option.text}
+                  {option.helperText && <small> ({option.helperText})</small>}
               </label>
             ))}
 
@@ -151,6 +169,7 @@ export default function Preview() {
                     onChange={() => toggleOption(question.id, option.id)}
                   />
                   {option.text}
+                  {option.helperText && <small> ({option.helperText})</small>}
                 </label>
               );
             })}

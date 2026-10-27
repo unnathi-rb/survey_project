@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { API_URL } from "../api";
+import { countWords } from "../words";
 
-type Option = { id: string; text: string };
+type Option = { id: string; text: string; helperText?: string };
 
 type Question = {
   id: string;
@@ -12,6 +13,7 @@ type Question = {
   helperText: string;
   required: boolean;
   options: Option[];
+  maxWords: number | null;
 };
 
 type Form = {
@@ -39,30 +41,43 @@ export default function Respond() {
 
   // Load the form when the page opens.
   useEffect(() => {
+    let ignore = false;
+
     async function load() {
       try {
         const response = await fetch(API_URL + "/surveys/" + id + "/form");
 
         if (response.status === 404) {
-          setUnavailable("This survey is not available.");
+          if (!ignore) setUnavailable("This survey is not available.");
           return;
         }
         if (!response.ok) {
           const body = await response.json();
-          setUnavailable(body.error ?? "This survey is not available.");
+          if (!ignore) setUnavailable(body.error ?? "This survey is not available.");
           return;
         }
 
-        setForm(await response.json());
+        const formData = await response.json();
+        if (!ignore) setForm(formData);
       } catch {
-        setUnavailable("Could not reach the server. Is the backend running?");
+        if (!ignore) setUnavailable("Could not reach the server. Is the backend running?");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
 
     load();
+
+    return () => {
+      ignore = true;
+    };
   }, [id]);
+
+  // How many words are typed so far in a text question.
+  function wordsTyped(questionId: string) {
+    const value = answers[questionId];
+    return typeof value === "string" ? countWords(value) : 0;
+  }
 
   function setAnswer(questionId: string, value: AnswerValue) {
     setAnswers({ ...answers, [questionId]: value });
@@ -82,7 +97,25 @@ export default function Respond() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (sending) return;
     setError("");
+
+    // Stop early if a text answer is over its word limit.
+    // (The server checks this too.)
+    if (form) {
+      for (const question of form.questions) {
+        if (
+          question.maxWords !== null &&
+          wordsTyped(question.id) > question.maxWords
+        ) {
+          setError(
+            'Please shorten "' + question.label + '" to at most ' +
+              question.maxWords + " words.",
+          );
+          return;
+        }
+      }
+    }
 
     // Send only the questions that have an answer.
     const list = [];
@@ -177,6 +210,19 @@ export default function Respond() {
               />
             )}
 
+            {question.maxWords !== null &&
+              (question.type === "short_text" ||
+                question.type === "long_text") && (
+                <small
+                  aria-live="polite"
+                  className={
+                    wordsTyped(question.id) > question.maxWords ? "error" : ""
+                  }
+                >
+                  {wordsTyped(question.id)} / {question.maxWords} words
+                </small>
+              )}
+
             {question.type === "single_choice" &&
               question.options.map((option) => (
                 <label key={option.id} className="choice">
@@ -187,6 +233,7 @@ export default function Respond() {
                     onChange={() => setAnswer(question.id, option.id)}
                   />
                   {option.text}
+                  {option.helperText && <small> ({option.helperText})</small>}
                 </label>
               ))}
 
@@ -202,6 +249,7 @@ export default function Respond() {
                       onChange={() => toggleOption(question.id, option.id)}
                     />
                     {option.text}
+                  {option.helperText && <small> ({option.helperText})</small>}
                   </label>
                 );
               })}

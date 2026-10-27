@@ -52,6 +52,7 @@ describe("Survey draft", () => {
     );
   });
 });
+
 function makeValidSurvey() {
   const survey = new Survey("Week 1 check-in", "How is it going?");
 
@@ -74,7 +75,7 @@ describe("Survey publish", () => {
 
   it("rejects a blank title", () => {
     const survey = makeValidSurvey();
-    survey.title = "   ";
+    survey.updateDetails({ title: "   " });
 
     expect(() => survey.publish()).toThrow("title cannot be blank");
   });
@@ -88,6 +89,7 @@ describe("Survey publish", () => {
     expect(survey.status).toBe("closed");
   });
 });
+
 describe("Survey reorder", () => {
   function labels(survey: Survey) {
     return survey.questions.map((q) => q.label);
@@ -124,5 +126,135 @@ describe("Survey reorder", () => {
     expect(() => survey.moveQuestion(a.id, "down")).toThrow(
       "Only a draft survey can be changed",
     );
+  });
+});
+
+describe("Survey word limit", () => {
+  it("can set and remove a word limit on a text question", () => {
+    const survey = new Survey("Title", "");
+    const q = survey.addQuestion("long_text", "Comments?");
+
+    survey.updateQuestion(q.id, { maxWords: 50 });
+    expect(survey.questions[0]?.maxWords).toBe(50);
+
+    survey.updateQuestion(q.id, { maxWords: null });
+    expect(survey.questions[0]?.maxWords).toBeNull();
+  });
+
+  it("rejects a limit on a question that is not text, and changes nothing", () => {
+    const survey = new Survey("Title", "");
+    const q = survey.addQuestion("rating", "Rate us");
+
+    expect(() => survey.updateQuestion(q.id, { maxWords: 10, label: "New" })).toThrow(
+      "Only text questions",
+    );
+    expect(survey.questions[0]?.maxWords).toBeNull();
+    expect(survey.questions[0]?.label).toBe("Rate us");
+  });
+
+  it("rejects a limit of 0 or 2.5", () => {
+    const survey = new Survey("Title", "");
+    const q = survey.addQuestion("short_text", "Name?");
+
+    expect(() => survey.updateQuestion(q.id, { maxWords: 0 })).toThrow("whole number");
+    expect(() => survey.updateQuestion(q.id, { maxWords: 2.5 })).toThrow("whole number");
+  });
+
+  it("cannot change the limit after publishing", () => {
+    const survey = makeValidSurvey();
+    const text = survey.questions[0]!;
+    survey.publish();
+
+    expect(() => survey.updateQuestion(text.id, { maxWords: 5 })).toThrow(
+      "Only a draft survey can be changed",
+    );
+  });
+});
+
+describe("Survey aggregate and child entities", () => {
+  it("updates question details through the Survey root", () => {
+    const survey = new Survey("Title", "Description");
+    const question = survey.addQuestion("short_text", "Old question");
+
+    survey.updateQuestion(question.id, {
+      label: "New question",
+      helperText: "Please be specific",
+      required: true,
+    });
+
+    expect(survey.questions[0]?.label).toBe("New question");
+    expect(survey.questions[0]?.helperText).toBe("Please be specific");
+    expect(survey.questions[0]?.required).toBe(true);
+  });
+
+  it("updates option wording without changing its ID", () => {
+    const survey = new Survey("Title", "");
+    const question = survey.addQuestion("single_choice", "Choose one");
+    const option = survey.addOption(question.id, "Old wording");
+    const originalId = option.id;
+
+    survey.updateOption(question.id, option.id, "Updated wording");
+
+    expect(survey.questions[0]?.options[0]?.id).toBe(originalId);
+    expect(survey.questions[0]?.options[0]?.text).toBe("Updated wording");
+  });
+
+  it("does not expose mutable child objects outside the aggregate", () => {
+    const survey = new Survey("Title", "");
+    const question = survey.addQuestion("single_choice", "Choose one");
+    const option = survey.addOption(question.id, "A");
+    survey.addOption(question.id, "B");
+
+    const questionSnapshot = survey.questions[0]!;
+    questionSnapshot.update({ label: "Changed outside the root" });
+    questionSnapshot.options[0]!.updateText("Changed option outside the root");
+    option.updateText("Changed returned option outside the root");
+
+    expect(survey.questions[0]?.label).toBe("Choose one");
+    expect(survey.questions[0]?.options[0]?.text).toBe("A");
+  });
+
+  it("does not allow child changes through the Survey after publication", () => {
+    const survey = new Survey("Title", "");
+    const question = survey.addQuestion("single_choice", "Choose one");
+    const option = survey.addOption(question.id, "A");
+    survey.addOption(question.id, "B");
+    survey.publish();
+
+    expect(() => survey.updateOption(question.id, option.id, "Changed")).toThrow(
+      "Only a draft survey can be changed",
+    );
+    expect(survey.questions[0]?.options[0]?.text).toBe("A");
+  });
+
+  it("serializes domain classes to the existing API data shape", () => {
+    const survey = new Survey("Title", "Description");
+    const question = survey.addQuestion("single_choice", "Choose one");
+    survey.addOption(question.id, "A");
+    survey.addOption(question.id, "B");
+
+    const json = JSON.parse(JSON.stringify(survey));
+    expect(json.title).toBe("Title");
+    expect(json.questions[0].label).toBe("Choose one");
+    expect(json.questions[0].options[0]).toMatchObject({ text: "A" });
+  });
+});
+describe("Survey helper text", () => {
+  it("can set and clear helper text in a draft, but not after publishing", () => {
+    const survey = new Survey("Title", "");
+    const q = survey.addQuestion("short_text", "Name?");
+
+    survey.updateQuestion(q.id, { helperText: "Use your first name" });
+    expect(survey.questions[0]?.helperText).toBe("Use your first name");
+
+    survey.updateQuestion(q.id, { helperText: "" });
+    expect(survey.questions[0]?.helperText).toBe("");
+
+    survey.updateQuestion(q.id, { helperText: "Back again" });
+    survey.publish();
+    expect(() => survey.updateQuestion(q.id, { helperText: "Too late" })).toThrow(
+      "Only a draft survey can be changed",
+    );
+    expect(survey.questions[0]?.helperText).toBe("Back again");
   });
 });

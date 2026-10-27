@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { API_URL } from "../api";
 
-type Option = { id: string; text: string };
+type Option = {
+  id: string;
+  text: string;
+  helperText?: string;
+};
 
 type Question = {
   id: string;
@@ -10,6 +14,8 @@ type Question = {
   label: string;
   options: Option[];
   required: boolean;
+  maxWords: number | null;
+  helperText: string;
 };
 
 type Survey = {
@@ -17,6 +23,7 @@ type Survey = {
   title: string;
   description: string;
   status: string;
+  version: number;
   questions: Question[];
 };
 
@@ -30,7 +37,65 @@ const TYPE_NAMES: Record<string, string> = {
 
 const MAX_QUESTIONS = 5;
 
-// ---------- one question card ----------
+// ---------- One option row ----------
+
+function OptionRow(props: {
+  option: Option;
+  onSave: (
+    optionId: string,
+    changes: { text?: string; helperText?: string },
+  ) => void;
+  onDelete: (optionId: string) => void;
+  busy: boolean;
+}) {
+  const [text, setText] = useState(props.option.text);
+  const [helper, setHelper] = useState(props.option.helperText ?? "");
+
+  useEffect(() => {
+    setText(props.option.text);
+    setHelper(props.option.helperText ?? "");
+  }, [props.option.text, props.option.helperText]);
+
+  // If a save fails, what you typed stays in the box: the state only changes
+  // when the server sends back a different saved value.
+  return (
+    <div className="option-row">
+      <input
+        value={text}
+        disabled={props.busy}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          if (text !== props.option.text) {
+            props.onSave(props.option.id, { text });
+          }
+        }}
+        aria-label="Option text"
+      />
+
+      <input
+        value={helper}
+        disabled={props.busy}
+        onChange={(e) => setHelper(e.target.value)}
+        onBlur={() => {
+          if (helper !== (props.option.helperText ?? "")) {
+            props.onSave(props.option.id, { helperText: helper });
+          }
+        }}
+        placeholder="Helper text (optional)"
+        aria-label="Option helper text"
+      />
+
+      <button
+        onClick={() => props.onDelete(props.option.id)}
+        disabled={props.busy}
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
+// ---------- One question card ----------
 
 type CardProps = {
   question: Question;
@@ -39,25 +104,62 @@ type CardProps = {
   onMove: (questionId: string, direction: "up" | "down") => void;
   onSaveLabel: (questionId: string, label: string) => void;
   onDelete: (questionId: string) => void;
-  onAddOption: (questionId: string, text: string) => void;
+  onAddOption: (questionId: string, text: string) => Promise<boolean>;
+  busy: boolean;
   onDeleteOption: (questionId: string, optionId: string) => void;
   onToggleRequired: (questionId: string, required: boolean) => void;
+  onSaveWordLimit: (questionId: string, maxWords: number | null) => void;
+  onSaveHelper: (questionId: string, helperText: string) => void;
+  onSaveOption: (
+    questionId: string,
+    optionId: string,
+    changes: { text?: string; helperText?: string },
+  ) => void;
 };
 
 function QuestionCard(props: CardProps) {
   const { question } = props;
+
   const [label, setLabel] = useState(question.label);
+  const [helper, setHelper] = useState(question.helperText ?? "");
   const [newOption, setNewOption] = useState("");
+  const [limit, setLimit] = useState(
+    question.maxWords === null ? "" : String(question.maxWords),
+  );
+
+  useEffect(() => {
+    setLabel(question.label);
+    setHelper(question.helperText ?? "");
+    setLimit(
+      question.maxWords === null ? "" : String(question.maxWords),
+    );
+  }, [question.label, question.helperText, question.maxWords]);
+
+  const isText =
+    question.type === "short_text" || question.type === "long_text";
 
   const isChoice =
     question.type === "single_choice" ||
     question.type === "multiple_choice";
 
-  function addOption() {
+  function saveLimit() {
+    const newLimit =
+      limit.trim() === "" ? null : Number(limit);
+
+    if (newLimit !== question.maxWords) {
+      props.onSaveWordLimit(question.id, newLimit);
+    }
+  }
+
+  async function addOption() {
     if (newOption.trim() === "") return;
 
-    props.onAddOption(question.id, newOption);
-    setNewOption("");
+    const ok = await props.onAddOption(question.id, newOption);
+
+    // Clear the input only when the server confirms the save.
+    if (ok) {
+      setNewOption("");
+    }
   }
 
   return (
@@ -72,6 +174,7 @@ function QuestionCard(props: CardProps) {
             <input
               type="checkbox"
               checked={question.required}
+              disabled={props.busy}
               onChange={(e) =>
                 props.onToggleRequired(question.id, e.target.checked)
               }
@@ -81,7 +184,7 @@ function QuestionCard(props: CardProps) {
 
           <button
             onClick={() => props.onMove(question.id, "up")}
-            disabled={props.index === 0}
+            disabled={props.index === 0 || props.busy}
             aria-label="Move question up"
             title="Move up"
           >
@@ -90,7 +193,7 @@ function QuestionCard(props: CardProps) {
 
           <button
             onClick={() => props.onMove(question.id, "down")}
-            disabled={props.index === props.total - 1}
+            disabled={props.index === props.total - 1 || props.busy}
             aria-label="Move question down"
             title="Move down"
           >
@@ -98,13 +201,17 @@ function QuestionCard(props: CardProps) {
           </button>
         </div>
 
-        <button onClick={() => props.onDelete(question.id)}>
+        <button
+          onClick={() => props.onDelete(question.id)}
+          disabled={props.busy}
+        >
           Delete question
         </button>
       </div>
 
       <input
         value={label}
+        disabled={props.busy}
         onChange={(e) => setLabel(e.target.value)}
         onBlur={() => {
           if (label !== question.label) {
@@ -115,29 +222,63 @@ function QuestionCard(props: CardProps) {
         aria-label="Question text"
       />
 
+      <input
+        value={helper}
+        disabled={props.busy}
+        onChange={(e) => setHelper(e.target.value)}
+        onBlur={() => {
+          if (helper !== (question.helperText ?? "")) {
+            props.onSaveHelper(question.id, helper);
+          }
+        }}
+        placeholder="Helper text (optional)"
+        aria-label="Helper text"
+      />
+
+      {isText && (
+        <label className="word-limit">
+          Word limit (optional):{" "}
+          <input
+            type="number"
+            min={1}
+            max={1000}
+            value={limit}
+            disabled={props.busy}
+            onChange={(e) => setLimit(e.target.value)}
+            onBlur={saveLimit}
+            placeholder="No limit"
+          />
+        </label>
+      )}
+
       {isChoice && (
         <div className="options">
           {question.options.map((option) => (
-            <div key={option.id} className="option-row">
-              <span>• {option.text}</span>
-
-              <button
-                onClick={() => props.onDeleteOption(question.id, option.id)}
-              >
-                Remove
-              </button>
-            </div>
+            <OptionRow
+              key={option.id}
+              option={option}
+              busy={props.busy}
+              onSave={(optionId, changes) =>
+                props.onSaveOption(question.id, optionId, changes)
+              }
+              onDelete={(optionId) =>
+                props.onDeleteOption(question.id, optionId)
+              }
+            />
           ))}
 
           <div className="option-row">
             <input
               value={newOption}
+              disabled={props.busy}
               onChange={(e) => setNewOption(e.target.value)}
               placeholder="New option"
               aria-label="New option"
             />
 
-            <button onClick={addOption}>Add option</button>
+            <button onClick={addOption} disabled={props.busy}>
+              Add option
+            </button>
           </div>
         </div>
       )}
@@ -145,13 +286,17 @@ function QuestionCard(props: CardProps) {
   );
 }
 
-// ---------- the whole editor ----------
+// ---------- The whole editor ----------
 
 export default function Editor() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [survey, setSurvey] = useState<Survey | null>(null);
+
+  // The survey version this screen last saw. It is a ref (not state) so a queued
+  // request always uses the NEWEST version, not the one from when you clicked.
+  const versionRef = useRef<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [message, setMessage] = useState("");
@@ -159,41 +304,60 @@ export default function Editor() {
   const [newType, setNewType] = useState("short_text");
   const [newLabel, setNewLabel] = useState("");
 
-  // Load the survey when the page opens.
+  // Load the survey and ignore results after leaving/changing the page.
   useEffect(() => {
+    let ignore = false;
+
     async function load() {
       try {
         const response = await fetch(API_URL + "/surveys/" + id);
+
+        if (ignore) return;
 
         if (!response.ok) {
           setNotFound(true);
           return;
         }
 
-        setSurvey(await response.json());
+        const json = await response.json();
+
+        if (!ignore) {
+          versionRef.current = json.version;
+          setSurvey(json);
+        }
       } catch {
-        setMessage("Could not reach the server. Is the backend running?");
+        if (!ignore) {
+          setMessage("Could not reach the server. Is the backend running?");
+        }
       } finally {
-        setLoading(false);
+        if (!ignore) {
+          setLoading(false);
+        }
       }
     }
 
     load();
+
+    return () => {
+      ignore = true;
+    };
   }, [id]);
 
-  // Sends one change to the backend. Every route sends back the updated survey.
-  async function send(
+  // Queue changes so requests are processed in the order they were made.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const [pending, setPending] = useState(0);
+  const busy = pending > 0;
+
+  async function sendNow(
     method: string,
     path: string,
     body?: object,
   ): Promise<boolean> {
-    setMessage("");
-
     try {
       const response = await fetch(API_URL + "/surveys/" + id + path, {
-        method: method,
+        method,
         headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
+        body: JSON.stringify({ ...(body ?? {}), version: versionRef.current }),
       });
 
       let data: { error?: string } & Partial<Survey> = {};
@@ -201,22 +365,52 @@ export default function Editor() {
       try {
         data = await response.json();
       } catch {
-        // Keep the empty object if the answer is not JSON.
+        // Keep the empty object if the response is not JSON.
       }
 
       if (!response.ok) {
-        setMessage(
-          data.error ?? "Something went wrong (error " + response.status + ")",
-        );
+        let text =
+          data.error ??
+          "Something went wrong (error " + response.status + ")";
+
+        if (response.status === 409) {
+          text +=
+            " Your typing is kept. Reload the page to see the latest version.";
+        }
+
+        setMessage(text);
         return false;
       }
 
+      versionRef.current = (data as Survey).version;
       setSurvey(data as Survey);
       return true;
     } catch {
-      setMessage("Could not reach the server");
+      setMessage(
+        "Could not reach the server. What you typed is still here, so try again.",
+      );
       return false;
     }
+  }
+
+  function send(
+    method: string,
+    path: string,
+    body?: object,
+  ): Promise<boolean> {
+    setMessage("");
+    setPending((n) => n + 1);
+
+    const result = queue.current.then(() =>
+      sendNow(method, path, body),
+    );
+
+    // One failed request must not block the rest of the queue.
+    queue.current = result.catch(() => undefined);
+
+    return result.finally(() => {
+      setPending((n) => n - 1);
+    });
   }
 
   async function addQuestion() {
@@ -225,43 +419,84 @@ export default function Editor() {
       label: newLabel,
     });
 
-    if (ok) setNewLabel("");
+    if (ok) {
+      setNewLabel("");
+    }
   }
 
   function saveLabel(questionId: string, label: string) {
-    send("PATCH", "/questions/" + questionId, { label: label });
+    send("PATCH", "/questions/" + questionId, { label });
+  }
+
+  function saveHelper(questionId: string, helperText: string) {
+    send("PATCH", "/questions/" + questionId, { helperText });
+  }
+
+  function saveOption(
+    questionId: string,
+    optionId: string,
+    changes: { text?: string; helperText?: string },
+  ) {
+    send(
+      "PATCH",
+      "/questions/" + questionId + "/options/" + optionId,
+      changes,
+    );
   }
 
   function toggleRequired(questionId: string, required: boolean) {
-    send("PATCH", "/questions/" + questionId, { required: required });
+    send("PATCH", "/questions/" + questionId, { required });
+  }
+
+  function saveWordLimit(
+    questionId: string,
+    maxWords: number | null,
+  ) {
+    send("PATCH", "/questions/" + questionId, { maxWords });
   }
 
   function deleteQuestion(questionId: string) {
     send("DELETE", "/questions/" + questionId);
   }
 
-  // Move a question one position up or down.
-  function moveQuestion(questionId: string, direction: "up" | "down") {
+  function moveQuestion(
+    questionId: string,
+    direction: "up" | "down",
+  ) {
     send("PATCH", "/questions/" + questionId + "/move", {
-      direction: direction,
+      direction,
     });
   }
 
-  function addOption(questionId: string, text: string) {
-    send("POST", "/questions/" + questionId + "/options", { text: text });
+  function addOption(
+    questionId: string,
+    text: string,
+  ): Promise<boolean> {
+    return send(
+      "POST",
+      "/questions/" + questionId + "/options",
+      { text },
+    );
   }
 
   function deleteOption(questionId: string, optionId: string) {
-    send("DELETE", "/questions/" + questionId + "/options/" + optionId);
+    send(
+      "DELETE",
+      "/questions/" + questionId + "/options/" + optionId,
+    );
   }
 
   async function publish() {
     const ok = await send("POST", "/publish");
 
-    if (ok) navigate("/authors/surveys");
+    if (ok) {
+      navigate("/authors/surveys");
+    }
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) {
+    return <p>Loading...</p>;
+  }
 
   if (notFound) {
     return (
@@ -271,14 +506,18 @@ export default function Editor() {
     );
   }
 
-  if (!survey) return <p className="error">{message}</p>;
+  if (!survey) {
+    return <p className="error">{message}</p>;
+  }
 
   // Only a draft can be edited.
   if (survey.status !== "draft") {
     return (
       <div>
         <h1>{survey.title}</h1>
-        <p>This survey is {survey.status}, so it can no longer be edited.</p>
+        <p>
+          This survey is {survey.status}, so it can no longer be edited.
+        </p>
         <Link className="button" to="/authors/surveys">
           Back to surveys
         </Link>
@@ -317,6 +556,10 @@ export default function Editor() {
           onAddOption={addOption}
           onDeleteOption={deleteOption}
           onToggleRequired={toggleRequired}
+          onSaveWordLimit={saveWordLimit}
+          onSaveOption={saveOption}
+          onSaveHelper={saveHelper}
+          busy={busy}
         />
       ))}
 
@@ -326,6 +569,7 @@ export default function Editor() {
         <div className="option-row">
           <select
             value={newType}
+            disabled={busy}
             onChange={(e) => setNewType(e.target.value)}
             aria-label="Question type"
           >
@@ -338,17 +582,20 @@ export default function Editor() {
 
           <input
             value={newLabel}
+            disabled={busy}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="Question text"
             aria-label="New question text"
           />
 
-          <button onClick={addQuestion} disabled={full}>
+          <button onClick={addQuestion} disabled={full || busy}>
             Add question
           </button>
         </div>
 
-        {full && <p>A survey can have only {MAX_QUESTIONS} questions.</p>}
+        {full && (
+          <p>A survey can have only {MAX_QUESTIONS} questions.</p>
+        )}
       </div>
 
       <div className="actions">
@@ -359,7 +606,9 @@ export default function Editor() {
           Preview
         </Link>
 
-        <button onClick={publish}>Publish survey</button>
+        <button onClick={publish} disabled={busy}>
+          {busy ? "Saving..." : "Publish survey"}
+        </button>
 
         <Link className="button" to="/authors/surveys">
           Back to surveys

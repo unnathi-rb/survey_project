@@ -1,113 +1,172 @@
-import { Survey } from "../domain/survey";
-import { SurveyResponse } from "../domain/SurveyResponse";
-import type { SurveyStatus } from "../domain/SurveyStatus";
-import type { QuestionType } from "../domain/Questiontype";
-import type { Question } from "../domain/Question";
-import type { Answer } from "../domain/SurveyResponse";
 import { SurveyModel, ResponseModel } from "./models";
+import { Survey } from "../domain/survey";
+import { Question } from "../domain/Question";
+import type { SurveyStatus } from "../domain/SurveyStatus";
+import { SurveyResponse, type Answer } from "../domain/SurveyResponse";
+import { DomainError } from "../domain/DomainError";
 
-// ---------- shapes of what comes out of MongoDB ----------
-
-type SurveyDoc = {
-  _id: string;
-  title: string;
-  description: string;
-  status: string;
-  questions: {
-    id: string;
-    type: string;
-    label: string;
-    helperText: string;
-    required?: boolean;
-    options: { id: string; text: string }[];
-  }[];
-  createdAt: Date;
-};
-
-type ResponseDoc = {
-  _id: string;
-  surveyId: string;
-  answers: { questionId: string; value: unknown }[];
-  submittedAt: Date;
-};
-
-// ---------- turning saved data back into domain objects ----------
-
-function toSurvey(doc: SurveyDoc): Survey {
-  const questions: Question[] = doc.questions.map((q) => ({
-    id: q.id,
-    type: q.type as QuestionType,
-    label: q.label,
-    helperText: q.helperText,
-    required: q.required === true,
-    options: q.options.map((o) => ({ id: o.id, text: o.text })),
-  }));
-
-  return Survey.restore({
-    id: doc._id,
-    title: doc.title,
-    description: doc.description,
-    status: doc.status as SurveyStatus,
-    questions: questions,
-    createdAt: doc.createdAt,
-  });
-}
-
-function toResponse(doc: ResponseDoc): SurveyResponse {
-  return SurveyResponse.restore({
-    id: doc._id,
-    surveyId: doc.surveyId,
-    answers: doc.answers as Answer[],
-    submittedAt: doc.submittedAt,
-  });
-}
-
-// ---------- surveys ----------
-
-// Save a survey (creates it, or replaces the old copy).
-export async function saveSurvey(survey: Survey): Promise<void> {
-  await SurveyModel.replaceOne(
-    { _id: survey.id },
-    {
-      _id: survey.id,
-      title: survey.title,
-      description: survey.description,
-      status: survey.status,
-      questions: survey.questions,
-      createdAt: survey.createdAt,
-    },
-    { upsert: true },
-  );
-}
-
-// Find one survey. Gives null if it does not exist.
 export async function findSurvey(id: string): Promise<Survey | null> {
   const doc = await SurveyModel.findById(id).lean();
   if (!doc) return null;
-  return toSurvey(doc as unknown as SurveyDoc);
+
+  return Survey.restore({
+    id: doc._id!.toString(),
+    title: doc.title ?? "",
+    description: doc.description ?? "",
+    status: (doc.status as SurveyStatus) ?? "draft",
+    version: doc.version ?? 1,
+    questions: (doc.questions || []).map((q: any) =>
+      Question.restore({
+        id: q.id,
+        type: q.type,
+        label: q.label,
+        helperText: q.helperText ?? "",
+        required: q.required ?? true,
+        options: (q.options || []).map((o: any) => ({
+          id: o.id,
+          text: o.text,
+          helperText: o.helperText ?? "",
+        })),
+        maxWords: q.maxWords ?? null,
+      })
+    ),
+    createdAt: doc.createdAt ?? new Date(),
+  });
 }
 
-// One page of surveys, newest first, with an optional status filter.
+export async function saveSurvey(survey: Survey): Promise<void> {
+  const data = survey.toJSON();
+  const fields = {
+    title: data.title,
+    description: data.description,
+    status: data.status,
+    version: data.version,
+    questions: data.questions,
+    createdAt: data.createdAt,
+  };
+
+  const loadedVersion = survey.loadedVersion;
+
+  // brand-new survey (create, or seed): just write it
+  if (loadedVersion === undefined) {
+    await SurveyModel.replaceOne(
+      { _id: survey.id },
+      { _id: data.id, ...fields },
+      { upsert: true },
+    );
+    return;
+  }
+
+  // existing survey: write ONLY if the database still has the version we loaded
+  const result = await SurveyModel.updateOne(
+    { _id: survey.id, version: loadedVersion },
+    { $set: fields },
+  );
+  if (result.matchedCount === 0) {
+    throw new DomainError(
+      "This survey was changed somewhere else. Reload to see the latest version.",
+      "conflict",
+    );
+  }
+}
+
+export async function deleteSurvey(id: string): Promise<void> {
+  await SurveyModel.findByIdAndDelete(id);
+}
+
 export async function listSurveys(
-  status: SurveyStatus | undefined,
-  page: number,
-  pageSize: number,
+  statusFilter?: SurveyStatus,
+  page: number = 1,
+  pageSize: number = 10
 ): Promise<{ items: Survey[]; total: number }> {
-  const filter = status ? { status: status } : {};
+  const query = statusFilter ? { status: statusFilter } : {};
+  const skip = (page - 1) * pageSize;
 
-  const total = await SurveyModel.countDocuments(filter);
-  const docs = await SurveyModel.find(filter)
-    .sort({ createdAt: -1, _id: -1 }) // newest first, id breaks ties
-    .skip((page - 1) * pageSize)
-    .limit(pageSize)
-    .lean();
+  const [docs, total] = await Promise.all([
+    SurveyModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(pageSize).lean(),
+    SurveyModel.countDocuments(query),
+  ]);
 
-  const items = (docs as unknown as SurveyDoc[]).map(toSurvey);
-  return { items: items, total: total };
+  const items = docs.map((doc: any) =>
+    Survey.restore({
+      id: doc._id!.toString(),
+      title: doc.title ?? "",
+      description: doc.description ?? "",
+      status: (doc.status as SurveyStatus) ?? "draft",
+      version: doc.version ?? 1,
+      questions: (doc.questions || []).map((q: any) =>
+        Question.restore({
+          id: q.id,
+          type: q.type,
+          label: q.label,
+          helperText: q.helperText ?? "",
+          required: q.required ?? true,
+          options: (q.options || []).map((o: any) => ({
+            id: o.id,
+            text: o.text,
+            helperText: o.helperText ?? "",
+          })),
+          maxWords: q.maxWords ?? null,
+        })
+      ),
+      createdAt: doc.createdAt ?? new Date(),
+    })
+  );
+
+  return { items, total };
 }
 
-// ---------- responses ----------
+// How a response looks in MongoDB. The database field is called submittedAt,
+// and the id is stored as _id. The domain object uses id and createdAt.
+type ResponseDoc = {
+  _id: string;
+  surveyId: string;
+  answers: Answer[];
+  submittedAt: Date;
+};
 
+// Database document -> domain object (the same rules apply again when loading).
+function toResponse(doc: ResponseDoc): SurveyResponse {
+  return SurveyResponse.restore({
+    id: String(doc._id),
+    surveyId: doc.surveyId,
+    answers: doc.answers,
+    createdAt: doc.submittedAt,
+  });
+}
+
+export async function listResponses(
+  surveyId: string,
+  page: number = 1,
+  pageSize: number = 10,
+): Promise<{ items: SurveyResponse[]; total: number }> {
+  const query = { surveyId };
+  const skip = (page - 1) * pageSize;
+
+  const [docs, total] = await Promise.all([
+    // _id is the tie-breaker, so pages never overlap when two responses share a time
+    ResponseModel.find(query)
+      .sort({ submittedAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean(),
+    ResponseModel.countDocuments(query),
+  ]);
+
+  return {
+    items: (docs as unknown as ResponseDoc[]).map(toResponse),
+    total,
+  };
+}
+
+// ALL responses of a survey (used for the results summary).
+export async function findAllResponses(surveyId: string): Promise<SurveyResponse[]> {
+  const docs = await ResponseModel.find({ surveyId }).lean();
+  return (docs as unknown as ResponseDoc[]).map(toResponse);
+}
+
+// Domain object -> database document. This was the line that failed:
+// the domain has "id", but MongoDB needs "_id" before it can save.
 export async function saveResponse(response: SurveyResponse): Promise<void> {
   await ResponseModel.replaceOne(
     { _id: response.id },
@@ -115,34 +174,8 @@ export async function saveResponse(response: SurveyResponse): Promise<void> {
       _id: response.id,
       surveyId: response.surveyId,
       answers: response.answers,
-      submittedAt: response.submittedAt,
+      submittedAt: response.createdAt,
     },
     { upsert: true },
   );
-}
-
-// One page of responses for a survey, newest first.
-export async function listResponses(
-  surveyId: string,
-  page: number,
-  pageSize: number,
-): Promise<{ items: SurveyResponse[]; total: number }> {
-  const total = await ResponseModel.countDocuments({ surveyId: surveyId });
-  const docs = await ResponseModel.find({ surveyId: surveyId })
-    .sort({ submittedAt: -1, _id: -1 })
-    .skip((page - 1) * pageSize)
-    .limit(pageSize)
-    .lean();
-
-  const items = (docs as unknown as ResponseDoc[]).map(toResponse);
-  return { items: items, total: total };
-}
-
-// ALL responses of a survey (used for the results summary).
-export async function findAllResponses(surveyId: string): Promise<SurveyResponse[]> {
-  const docs = await ResponseModel.find({ surveyId: surveyId }).lean();
-  return (docs as unknown as ResponseDoc[]).map(toResponse);
-}
-export async function deleteSurvey(id: string): Promise<void> {
-  await SurveyModel.deleteOne({ _id: id });
 }

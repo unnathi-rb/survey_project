@@ -53,7 +53,23 @@ describe("SurveyResponse", () => {
     expect(() => SurveyResponse.create(s.survey, validAnswers(s))).toThrow("closed");
   });
 
-  
+    it("counts a repeated checkbox choice only once", () => {
+    const s = makeSurvey();
+    const answers = validAnswers(s).map((a) =>
+      a.questionId === s.multi.id ? { ...a, value: [s.slack.id, s.slack.id, s.jira.id] } : a,
+    );
+    const response = SurveyResponse.create(s.survey, answers);
+    const saved = response.answers.find((a) => a.questionId === s.multi.id);
+    expect(saved?.value).toEqual([s.slack.id, s.jira.id]);
+  });
+
+  it("does not accept an empty list for a required checkbox question", () => {
+    const s = makeSurvey();
+    const answers = validAnswers(s).map((a) =>
+      a.questionId === s.multi.id ? { ...a, value: [] as string[] } : a,
+    );
+    expect(() => SurveyResponse.create(s.survey, answers)).toThrow("required");
+  });
 
   it("rejects an unknown question", () => {
     const s = makeSurvey();
@@ -113,5 +129,123 @@ describe("SurveyResponse", () => {
       a.questionId === s.text.id ? { ...a, value: "   " } : a,
     );
     expect(() => SurveyResponse.create(s.survey, answers)).toThrow("required");
+  });
+});
+
+describe("SurveyResponse word limit", () => {
+  // A published survey with one short text question that allows 3 words.
+  function makeLimitedSurvey(required = false) {
+    const survey = new Survey("Limits", "");
+    const q = survey.addQuestion("short_text", "In a few words?");
+    survey.updateQuestion(q.id, { maxWords: 3, required: required });
+    survey.publish();
+    return { survey, q };
+  }
+
+  it("accepts an answer at the limit", () => {
+    const { survey, q } = makeLimitedSurvey();
+    const response = SurveyResponse.create(survey, [
+      { questionId: q.id, value: "one two three" },
+    ]);
+    expect(response.answers.length).toBe(1);
+  });
+
+  it("rejects an answer over the limit", () => {
+    const { survey, q } = makeLimitedSurvey();
+    expect(() =>
+      SurveyResponse.create(survey, [{ questionId: q.id, value: "one two three four" }]),
+    ).toThrow("at most 3 words (you wrote 4)");
+  });
+
+  it("extra spaces and new lines do not count as words", () => {
+    const { survey, q } = makeLimitedSurvey();
+    const response = SurveyResponse.create(survey, [
+      { questionId: q.id, value: "  one \n two   three  " },
+    ]);
+    expect(response.answers[0]!.value).toBe("one \n two   three");
+  });
+
+  it("a question without a limit accepts long answers", () => {
+    const survey = new Survey("No limit", "");
+    const q = survey.addQuestion("long_text", "Tell us more");
+    survey.publish();
+    const long = Array(300).fill("word").join(" ");
+    const response = SurveyResponse.create(survey, [{ questionId: q.id, value: long }]);
+    expect(response.answers.length).toBe(1);
+  });
+});
+describe("SurveyResponse optional answers", () => {
+  function makeOptionalSurvey() {
+    const survey = new Survey("Optional", "");
+    const text = survey.addQuestion("short_text", "Name?");
+    const rating = survey.addQuestion("rating", "Rate us");
+    const single = survey.addQuestion("single_choice", "Pick");
+    survey.addOption(single.id, "A");
+    survey.addOption(single.id, "B");
+    const multi = survey.addQuestion("multiple_choice", "Tick");
+    survey.addOption(multi.id, "X");
+    survey.addOption(multi.id, "Y");
+    survey.publish();
+    return { survey, text, rating, single, multi };
+  }
+
+  it("rejects an empty array for optional text, rating and single choice", () => {
+    const s = makeOptionalSurvey();
+    for (const q of [s.text, s.rating, s.single]) {
+      expect(() =>
+        SurveyResponse.create(s.survey, [{ questionId: q.id, value: [] }]),
+      ).toThrow();
+    }
+  });
+
+  it("treats an empty list as skipped for an optional checkbox question", () => {
+    const s = makeOptionalSurvey();
+    const response = SurveyResponse.create(s.survey, [{ questionId: s.multi.id, value: [] }]);
+    expect(response.answers.length).toBe(0);
+  });
+
+  it("treats a blank string as skipped for text, but not for a rating", () => {
+    const s = makeOptionalSurvey();
+    const response = SurveyResponse.create(s.survey, [{ questionId: s.text.id, value: "  " }]);
+    expect(response.answers.length).toBe(0);
+    expect(() =>
+      SurveyResponse.create(s.survey, [{ questionId: s.rating.id, value: "" }]),
+    ).toThrow();
+  });
+
+  describe("error kinds and reporting", () => {
+    it("reports every problem in one message, as an 'invalid' error", () => {
+      const s = makeSurvey();
+      try {
+        SurveyResponse.create(s.survey, [
+          { questionId: s.text.id, value: 5 },
+          { questionId: s.rating.id, value: 7 },
+        ]);
+        throw new Error("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("DomainError");
+        expect(error.kind).toBe("invalid");
+        expect(error.message).toContain("answer must be text");
+        expect(error.message).toContain("Rating must be between 1 and 5");
+        expect(error.message).toContain("is required");
+      }
+    });
+
+    it("uses the Rating rule: 2.5 is not allowed", () => {
+      const s = makeSurvey();
+      const answers = [...validAnswers(s), { questionId: s.rating.id, value: 2.5 }];
+      expect(() => SurveyResponse.create(s.survey, answers)).toThrow("whole number");
+    });
+
+    it("draft and closed surveys are 'conflict' errors (409), not 'invalid'", () => {
+      const s = makeSurvey();
+      s.survey.close();
+      try {
+        SurveyResponse.create(s.survey, validAnswers(s));
+        throw new Error("should have thrown");
+      } catch (error: any) {
+        expect(error.kind).toBe("conflict");
+      }
+    });
   });
 });
